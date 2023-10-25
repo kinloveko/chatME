@@ -1,20 +1,26 @@
-import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import React from 'react';
+import AppNavigation from './navigation/appNavigation';
+import * as SplashScreen from 'expo-splash-screen'; // Import SplashScreen from expo-splash-screen
+import { useFonts } from 'expo-font';
 
 export default function App() {
-  return (
-    <View style={styles.container}>
-      <Text>Open up App.js to start working on your app!</Text>
-      <StatusBar style="auto" />
-    </View>
-  );
-}
+  let [fontsLoaded] = useFonts({
+    'CS Gorgon': require('./assets/fonts/csgorgonregular.ttf'),
+    'Betm Regular' : require('./assets/fonts/betmroundedregular.otf'),
+    'Betm Light' :require('./assets/fonts/betmroundedlight.otf'),
+    'League Spartan' :require('./assets/fonts/leaguespartan.ttf'),
+    'League Spartan Black' :require('./assets/fonts/leaguespartanblack.ttf'),
+  });
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
+  // Prevent auto-hiding of the splash screen while fonts are loading
+  SplashScreen.preventAutoHideAsync();
+
+  if (!fontsLoaded) {
+    return null; // Return null to keep the splash screen visible
+  }
+
+  // Once fonts are loaded, hide the splash screen
+  SplashScreen.hideAsync();
+
+  return <AppNavigation />;
+}
