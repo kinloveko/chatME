@@ -5,8 +5,9 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { ArrowLeftIcon } from 'react-native-heroicons/solid'; 
 import { useNavigation } from '@react-navigation/native'; 
 import InputWithIcon from '../components/InputWithIcon';
-import { createUserWithEmailAndPassword, fetchSignInMethodsForEmail } from 'firebase/auth';
-import {FIREBASE_AUTH} from '../config/firebase';
+import { createUserWithEmailAndPassword} from 'firebase/auth';
+import {FIREBASE_AUTH, FIREBASE_DB} from '../config/firebase';
+import { doc, setDoc } from "firebase/firestore";
 import CustomModal from '../components/CustomModal';
 
 export default function SignUpScreen() {
@@ -85,33 +86,38 @@ export default function SignUpScreen() {
       const isEmailValid = email && /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,4}$/i.test(email);
 
       // Password validation
-      const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{6,}$/;
-     
-      let passwordError = 'Password must meet the following criteria:\n';
+    
+      // Password validation
+      let isValid = true; // Flag to check overall password validity
+
       if (!password) {
-        setPasswordError(' Password is required!');
+        setPasswordError('Password is required!');
+        isValid = false;
       } else {
         if (!/(?=.*[a-z])/.test(password)) {
-          passwordError += ' At least 1 Lowercase\n';
+          setPasswordError('Password must contain at least 1 lowercase character');
+          isValid = false;
         }
         if (!/(?=.*[A-Z])/.test(password)) {
-          passwordError += ' At least 1 Uppercase\n';
+          setPasswordError('Password must contain at least 1 uppercase character');
+          isValid = false;
         }
-        
         if (!/(?=.*[@$!%*?&])/.test(password)) {
-          passwordError += ' At least 1 Symbol\n';
+          setPasswordError('Password must contain at least 1 special character');
+          isValid = false;
         }
         if (password.length < 6) {
-          passwordError += ' Minimum of 6 characters\n';
-        }
-
-        if (passwordError === 'Password must meet the following criteria:\n') {
-          setPasswordError('');
-          setIsPasswordValid(true);
-        } else {
-          setPasswordError(passwordError);
+          setPasswordError('Password must be at least 6 characters long');
+          isValid = false;
         }
       }
+        if(isValid){
+             setPasswordError('');
+             setIsPasswordValid(true);
+        }else{
+       
+          return;
+        }
 
       setIsFirstNameValid(isFirstNameValid);
       setIsLastNameValid(isLastNameValid);
@@ -119,24 +125,45 @@ export default function SignUpScreen() {
     
       // Continue with sign-up logic if all inputs are valid
       if (firstName && lastName && email && password) {
-          
-        try {
-          await createUserWithEmailAndPassword(FIREBASE_AUTH, email, password);
-          console.log('User created successfully.');
-        } catch (err) {
-          if (err.code === 'auth/email-already-in-use') {
-            // Email is already in use
-            InvalidCredential('Please double-check the email address or use a different one');
-            setTitle('Email already exists');
-            setIcon('alert-circle-outline')
-            setEmailError('Email already exists');
-            openModalInvalid();
-            console.log('Email already exists');
-          } else {
-            console.log('Error creating user:', err.message);
-          }
-        }
        
+        createUserWithEmailAndPassword(FIREBASE_AUTH, email, password)
+          .then((userCredential) => {
+            const user = userCredential.user;
+            console.log('User created successfully.');
+      
+            // Save additional user data in Firestore
+            const isOnline = "true";
+            const isVerified = 'false';
+            const show = false;
+            const profilePic = '';
+            const userDocRef = doc(FIREBASE_DB, "User", user.uid);
+            const userData = {
+              id: user.uid,
+              firstName,
+              lastName,
+              email,
+              isVerified,
+              profilePic,
+              show,
+            };
+            return setDoc(userDocRef, userData);
+          })
+          .then(() => {
+            console.log('User data saved in Firestore.');
+          })
+          .catch((err) => {
+            if (err.code === 'auth/email-already-in-use') {
+              // Email is already in use
+              InvalidCredential('Please double-check the email address or use a different one');
+              setTitle('Email already exists');
+              setIcon('alert-circle-outline');
+              setEmailError('Email already exists');
+              openModalInvalid();
+              console.log('Email already exists');
+            } else {
+              console.log('Error creating user:', err.message);
+            }
+          });
       }
     };
 

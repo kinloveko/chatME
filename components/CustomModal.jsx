@@ -1,14 +1,15 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, Modal } from 'react-native';
+import { View, Text, TouchableOpacity, Modal, Dimensions } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons'; // Import an appropriate icon
 import { themeColors } from '../theme';
 
+const screenSize = Dimensions.get('window').height;
 const CustomModal = ({ visible, onClose, onOkay, message,title, iconName}) => {
   return (
     <Modal transparent={true} animationType="fade" visible={visible} onRequestClose={onClose}>
-      {/* Create a semi-transparent background */}
+      
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0, 0, 0, 0.5)' }}>
-        <View style={{ backgroundColor:'white', width: 300, height: 200, paddingTop: 10, borderRadius: 20 }}>
+        <View style={{ backgroundColor:'white', width:screenSize < 768 ? 300 : 320, height: screenSize < 768 ? 200:220, paddingTop: 10, borderRadius: 20 }}>
        
           <View style={{ alignItems: 'center', flexDirection: 'column', justifyContent: 'center' }}>
             <Icon name={iconName} color={themeColors.invalidColor} size={42} />

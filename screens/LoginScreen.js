@@ -1,4 +1,4 @@
-import { View, Text,Image,StyleSheet,Dimensions, TouchableOpacity, TextInput } from 'react-native'
+import { View, Text,Image,StyleSheet,Dimensions, TouchableOpacity } from 'react-native'
 import React, {useState} from 'react'
 import {themeColors} from '../theme'
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -13,7 +13,6 @@ export default function LoginScreen() {
 
   const navigation = useNavigation();
 
-  
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 

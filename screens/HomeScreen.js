@@ -7,14 +7,15 @@ import {themeColors} from '../theme'
 import * as Animatable from 'react-native-animatable';
 import Chat from './subScreens/Chat';
 import Notification from './subScreens/Notification';
-import Settings from './subScreens/Settings';
+import Profile from './subScreens/Profile';
 
 const TabArr = [
   { route: 'Chat', label: 'Chat', type: Icons.Feather, icon: 'message-circle', component: Chat },
   { route: 'Notification', label: 'Notification', type: Icons.Feather, icon: 'bell', component: Notification },
-  { route: 'Settings', label: 'Profile', type: Icons.Feather, icon: 'user', component: Settings },
+  { route: 'Profile Settings', label: 'Profile', type: Icons.Feather, icon: 'user', component: Profile },
 ];
 const screenHeight = Dimensions.get('window').height;
+const constHeight = screenHeight * 0.09;
 const Tab = createBottomTabNavigator();
 
 const animate1 = { 0: { scale: .2, translateY: 1 }, .52: { translateY: -10 }, 1: { scale: 1.0, translateY: -10 } }
@@ -44,24 +45,19 @@ const TabButton = (props) => {
   }, [focused])
 
   return (
-    <TouchableOpacity onPress={onPress} activeOpacity={1}  style={styles.container}>
-      <Animatable.View  ref={viewRef}  duration={1000}  style={styles.container}>
-        <View style={styles.btn}>
-          <Animatable.View
-            ref={circleRef}
-            style={styles.circle} />
-          <Icon type={item.type} name={item.icon} color={focused ? Colors.white : themeColors.semiBlack} />
-
-        </View>
-        <Animatable.Text
-          ref={textRef}
-          style={styles.text}>
-          
-          {item.label}
-        </Animatable.Text>
-        {focused && <View style={styles.dot} />}
-      </Animatable.View>
-    </TouchableOpacity>
+    <TouchableOpacity onPress={onPress} activeOpacity={1} style={styles.container}>
+    <Animatable.View ref={viewRef} duration={1000} style={styles.container}>
+      <View style={styles.btn}>
+        <Animatable.View ref={circleRef} style={styles.circle}>
+          {focused && <View style={styles.activeCircle} />}
+        </Animatable.View>
+        <Icon type={item.type} name={item.icon} color={focused ? Colors.white : themeColors.semiBlack} />
+      </View>
+      <Animatable.Text ref={textRef} style={styles.text}>
+        {item.label}
+      </Animatable.Text>
+    </Animatable.View>
+  </TouchableOpacity>
   )
 }
 
@@ -71,6 +67,7 @@ export default function AnimTab1() {
       screenOptions={{
         headerShown:false,
         tabBarStyle: styles.tabBar,
+        headerTitleAlign: 'center',
       }}
     >
       {TabArr.map((item, index) => {
@@ -94,9 +91,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   tabBar: {
-    height: screenHeight < 768 ? 50 : 80,
+    height: constHeight,
     position: 'absolute',
-    borderRadius: 16,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
   },
   btn: {
     width: 40,
@@ -118,25 +116,18 @@ const styles = StyleSheet.create({
   activeCircle: {
     position: 'absolute',
     bottom: 5, // Position the dot at the bottom of the button
-    height: 8, // Adjust the size of the dot as needed
-    width: 8, // Adjust the size of the dot as needed
+    height: 5, // Adjust the size of the dot as needed
+    width: 10, // Adjust the size of the dot as needed
     borderRadius: 4, // Make it a circle
-    backgroundColor: Colors.primary, // Color of the dot
+    backgroundColor: themeColors.buttonColorPrimary,
+    top:-5 // Color of the dot
   },
   text: {
     top:screenHeight < 768 ? 0 : 7,
-    fontSize: 13,
-    fontFamily:'Betm Regular',
+    fontSize: 12,
     textAlign: 'center',
     color: themeColors.semiBlack,
   },
-   dot: {
-    width: 10,
-    height: 5,
-    backgroundColor: themeColors.buttonColorPrimary, // Change to your desired color
-    borderRadius: 3,
-    position: 'absolute',
-    top:2, // Adjust this to position the dot above the selected tab
-  },
+  
   
 })

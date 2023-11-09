@@ -8,7 +8,8 @@ import LoginScreen from '../screens/LoginScreen';
 import SignUpScreen from '../screens/SignUpScreen';
 import SplashScreen from '../screens/SplashScreen';
 import useAuth from '../hooks/useAuth';
-
+import AddNewMessage from '../screens/messageScreens/AddMessage/';
+import Conversation from '../screens/messageScreens/Conversation/';
 const Stack = createNativeStackNavigator();
 
 export default function AppNavigation() {
@@ -24,14 +25,19 @@ export default function AppNavigation() {
       <Stack.Navigator initialRouteName={user ? 'Home' : 'Splash'}>
         {user ? (
           // Authenticated user views
+          <>
           <Stack.Screen name="Home" options={{ headerShown: false }} component={HomeScreen} />
-        ) : (
+          <Stack.Screen name="AddNewMessage" options={{ headerShown: false }} component={AddNewMessage} />
+          <Stack.Screen name="Conversation" options={{ headerShown: false }} component={Conversation} />
+          </>
+          ) : (
           // Non-authenticated user views
           <>
             <Stack.Screen name="Splash" options={{ headerShown: false }} component={SplashScreen} />
             <Stack.Screen name="Welcome" options={{ headerShown: false }} component={WelcomeScreen} />
             <Stack.Screen name="Login" options={{ headerShown: false }} component={LoginScreen} />
             <Stack.Screen name="SignUp" options={{ headerShown: false }} component={SignUpScreen} />
+           
           </>
         )}
       </Stack.Navigator>

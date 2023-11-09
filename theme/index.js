@@ -5,4 +5,6 @@ export const themeColors = {
     grey: '#BABBC3',
     invalidColor:'#F15846',
     validColor: '#25AD6B',
+    semiGray: '#F4F4F4',
+    onlineGreen: '#32CD32',
  }   
