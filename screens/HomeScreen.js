@@ -11,9 +11,10 @@ import Profile from './subScreens/Profile';
 
 const TabArr = [
   { route: 'Chat', label: 'Chat', type: Icons.Feather, icon: 'message-circle', component: Chat },
-  { route: 'Notification', label: 'Notification', type: Icons.Feather, icon: 'bell', component: Notification },
+ // { route: 'Notification', label: 'Notification', type: Icons.Feather, icon: 'bell', component: Notification },
   { route: 'Profile Settings', label: 'Profile', type: Icons.Feather, icon: 'user', component: Profile },
 ];
+
 const screenHeight = Dimensions.get('window').height;
 const constHeight = screenHeight * 0.09;
 const Tab = createBottomTabNavigator();

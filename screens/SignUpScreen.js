@@ -1,14 +1,15 @@
-import { View, Text, TouchableOpacity,ScrollView, Dimensions } from 'react-native'
-import React, { useState } from 'react';
+import { View, Text, TouchableOpacity,ScrollView,TouchableWithoutFeedback, Dimensions,ActivityIndicator,Modal } from 'react-native'
+import React, { useState} from 'react';
 import { themeColors } from '../theme'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { ArrowLeftIcon } from 'react-native-heroicons/solid'; 
 import { useNavigation } from '@react-navigation/native'; 
 import InputWithIcon from '../components/InputWithIcon';
-import { createUserWithEmailAndPassword} from 'firebase/auth';
+import { createUserWithEmailAndPassword, sendEmailVerification} from 'firebase/auth';
 import {FIREBASE_AUTH, FIREBASE_DB} from '../config/firebase';
 import { doc, setDoc } from "firebase/firestore";
 import CustomModal from '../components/CustomModal';
+import { encode } from 'base-64';
 
 export default function SignUpScreen() {
 
@@ -32,8 +33,8 @@ export default function SignUpScreen() {
     const [inValid, InvalidCredential] = useState('');
     const [titleError,setTitle] = useState('');
     const [modalVisible, setModalVisible] = useState(false);
-   
-    const openModalInvalid = () => {
+    
+  const openModalInvalid = () => {
       setModalVisible(true);
     };
    
@@ -49,31 +50,36 @@ export default function SignUpScreen() {
 
     const handleSignUp = async () => {
   
-    // First Name validation
-    const isFirstNameValid = firstName && firstName.length >= 2;
+          // First Name validation
+          const isFirstNameValid = firstName && firstName.length >= 2 && /^[A-Za-z]+$/.test(firstName);
 
-      if(!firstName){
-        setFirstNameError(' First name is required!');
-      }
-      else if ( firstName.length < 2) {
-        setFirstNameError(' First name must have 2 characters or more!');
-      } else {
-        setFirstNameError('');
-      }
-     
-      if(!lastName) {
-        setLastNameError(' Last name is required!');
-      }
-      else if ( lastName.length < 2) {
-        setLastNameError('Last name must have 2 characters or more!');
-      } else {
-        setLastNameError('');
-      }
-  
-      // Last Name validation
-       const isLastNameValid = lastName && lastName.length >= 2;
+          if (!firstName) {
+            setFirstNameError('First name is required!');
+          } else if (firstName.length < 2) {
+            setFirstNameError('First name must have 2 characters or more!');
+          } else if (!/^[A-Za-z]+$/.test(firstName)) {
+            setFirstNameError('First name should not contain numbers or spaces!');
+          } else {
+            setFirstNameError('');
+          }
+        // Last Name validation
+        const isLastNameValid = lastName && /^[A-Za-z]+(?: [A-Za-z]+)*$/.test(lastName);
 
-       const emailRegex = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,4}$/;
+        if (!lastName) {
+          setLastNameError('Last name is required!');
+        } else if (lastName.length < 2) {
+          setLastNameError('Last name must have 2 characters or more!');
+        } else if (!/^[A-Za-z]+(?: [A-Za-z]+)*$/.test(lastName)) {
+          setLastNameError('Last name should not contain number and spaces in (beginning or end) are allowed');
+        } else {
+          setLastNameError('');
+        }
+
+
+  // Email validation
+      const isEmailValid = email && /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,4}$/i.test(email);
+
+      const emailRegex = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,4}$/;
       if (!email) {
         setEmailError('Email is required!');
       } else if (!emailRegex.test(email)) {
@@ -82,9 +88,7 @@ export default function SignUpScreen() {
         setEmailError('');
       }
 
-      // Email validation
-      const isEmailValid = email && /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,4}$/i.test(email);
-
+    
       // Password validation
     
       // Password validation
@@ -111,6 +115,8 @@ export default function SignUpScreen() {
           isValid = false;
         }
       }
+
+
         if(isValid){
              setPasswordError('');
              setIsPasswordValid(true);
@@ -122,50 +128,68 @@ export default function SignUpScreen() {
       setIsFirstNameValid(isFirstNameValid);
       setIsLastNameValid(isLastNameValid);
       setIsEmailValid(isEmailValid);
-    
-      // Continue with sign-up logic if all inputs are valid
-      if (firstName && lastName && email && password) {
-       
-        createUserWithEmailAndPassword(FIREBASE_AUTH, email, password)
-          .then((userCredential) => {
-            const user = userCredential.user;
-            console.log('User created successfully.');
       
-            // Save additional user data in Firestore
-            const isOnline = "true";
-            const isVerified = 'false';
-            const show = false;
-            const profilePic = '';
-            const userDocRef = doc(FIREBASE_DB, "User", user.uid);
-            const userData = {
-              id: user.uid,
-              firstName,
-              lastName,
-              email,
-              isVerified,
-              profilePic,
-              show,
-            };
-            return setDoc(userDocRef, userData);
-          })
-          .then(() => {
-            console.log('User data saved in Firestore.');
-          })
-          .catch((err) => {
-            if (err.code === 'auth/email-already-in-use') {
-              // Email is already in use
-              InvalidCredential('Please double-check the email address or use a different one');
-              setTitle('Email already exists');
-              setIcon('alert-circle-outline');
-              setEmailError('Email already exists');
-              openModalInvalid();
-              console.log('Email already exists');
-            } else {
-              console.log('Error creating user:', err.message);
-            }
-          });
+      if (
+        firstName &&
+        lastName &&
+        email &&
+        password &&
+        passwordErrors === '' &&  
+        emailError  === ''&&
+        lastNameError  === ''&&
+        firstNameError === ''
+      )  {
+        try {
+      // Create user with email and password
+        const userCredential = await createUserWithEmailAndPassword(FIREBASE_AUTH, email, password);
+        const user = userCredential.user;
+          // Send email verification
+        await sendEmailVerification(user);
+        // Save additional user data in Firestore
+        const isOnline = "true";
+        const loggedAs = "normal";
+        const isVerified = false;
+        const show = true;
+        const passEncode = encodeToBase64(password);
+        const profilePic = '';
+        const userDocRef = doc(FIREBASE_DB, "User", user.uid);
+        const userData = {
+          id: user.uid,
+          firstName,
+          lastName,
+          email,
+          isVerified,
+          profilePic,
+          show,
+          isOnline,
+          primaryPassword: passEncode,
+          loggedAs,
+        };
+        await setDoc(userDocRef, userData, { merge: true });
+        console.log('User data saved in Firestore.');
+        console.log('Email verification sent. Please check your email.');
+        } catch (err) {
+          if (err.code === 'auth/email-already-in-use') {
+            // Email is already in use
+            InvalidCredential('Please double-check the email address or use a different one');
+            setTitle('Email already exists');
+            setIcon('alert-circle-outline');
+            setEmailError('Email already exists');
+            openModalInvalid();
+            console.log('Email already exists');
+          } 
+        }
       }
-    };
+      else{
+        console.log("something wrong");
+      }
+  };
+
+    // Function to encode to base64
+    function encodeToBase64(data) {
+      const encodedData = encode(data);
+      return encodedData;
+    }
 
 
     const screenWidth = Dimensions.get('window').height;
@@ -295,6 +319,7 @@ export default function SignUpScreen() {
       {inValid && (
         <CustomModal iconName={iconName} title={titleError} message={inValid} visible={modalVisible} onClose={closeModal} onOkay={handleOkayInvalid} />
       )}
+     
       </View>
       </ScrollView>
   )

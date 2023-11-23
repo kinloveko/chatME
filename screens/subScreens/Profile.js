@@ -21,6 +21,14 @@ export default function ProfileScreen({ navigation }) {
     const auth = getAuth();
     const handleLogout = async () => {
       try {
+     // Get the user's Firestore document reference
+      const userDocRef = doc(FIREBASE_DB, 'User', userData.id);
+
+      // Update the isOnline field to "false"
+      await updateDoc(userDocRef, {
+        isOnline: 'false',
+      });
+
         await signOut(auth); // Sign the user out
         navigation.navigate('Splash'); // Navigate to the login screen or any other screen you prefer
       } catch (error) {
@@ -30,10 +38,12 @@ export default function ProfileScreen({ navigation }) {
     const name = userData ? userData.firstName + ' ' + userData.lastName : 'Unknown';
     const email = userData ? userData.email : 'Unknown email';
     const isVerified = userData ? userData.isVerified : false;
-   
+    console.log("isVerified:",isVerified);
     const noImage = require('../../assets/images/noprofile.png');
     const profilePic = userData ? userData.profilePic : '';
     const [image, setImage] = useState(null);
+    const hasSecondPassword = userData ? userData.secondPassword : null;
+
 
     const handlePress = async () => {
         // Request permission to access the gallery (camera roll)
@@ -108,10 +118,16 @@ export default function ProfileScreen({ navigation }) {
             throw error;
         }
     };
-    
 
+    const handleFavoritePress = () => {
+     if(hasSecondPassword){
+      const whereTo = "Profile";
+      navigation.navigate('FavoritesMessage',{whereTo}); // Navigate to Conversation and pass the id
+     }else{
+      navigation.navigate('OnboardingScreen',{from:"Profile"});
+     }
+    }
     return (
-      
         <SafeAreaView
             style={{
                 flex: 1,
@@ -129,6 +145,13 @@ export default function ProfileScreen({ navigation }) {
   <View style={styles.headerCenter}>
     <Text style={styles.headerText}>My Profile</Text>
   </View>
+  <TouchableOpacity onPress={handleLogout} >
+      <Icon type={Icons.Feather}
+               name="log-out" 
+               color={themeColors.semiBlack} 
+               size={screenHeight < 768 ? 20 : 25} 
+               style={{marginEnd:10,marginStart:-35,marginTop:-2}}/>
+     </TouchableOpacity>
 </View>
 
             <ScrollView
@@ -156,19 +179,19 @@ export default function ProfileScreen({ navigation }) {
                 <Text style={styles.userName}>{name}</Text>
                 <Text style={styles.aboutUser}>{email}</Text>
                 
-                <View style={{ display: isVerified ? 'none' : 'flex' }}>
+                <View style={{ display: isVerified  === false ? 'flex' : 'none' }}>
                
                   <TouchableOpacity style={styles.userBtn} onPress={() => navigation.navigate('')}>
                   <Text style={styles.userBtnTxt}>Verify email</Text>
                   </TouchableOpacity>
-
+                
                 </View> 
               </View>
               </View>
               <View style={styles.firstLine} />
               <View style={{width:'100%',marginTop:20}}>
                     
-                       <TouchableOpacity style={styles.buttonContainer}>
+                       <TouchableOpacity onPress={handleFavoritePress} style={styles.buttonContainer}>
                           <View style={styles.buttonColumn}>
                             <Icon type={Icons.Feather} name="heart" color={themeColors.semiBlack} size={screenHeight < 768 ? 22 : 25} />
                               <Text style={styles.buttonText}>Favorites</Text>
@@ -233,10 +256,7 @@ export default function ProfileScreen({ navigation }) {
                              source={require('../../assets/icons/right.png')}/>
                    </TouchableOpacity> 
           
-          
-          
            <TouchableOpacity onPress={handleLogout} style={styles.buttonContainer}>
-                   
                    <View style={styles.buttonColumn}>
                      <Icon type={Icons.Feather} name="log-out" color={themeColors.invalidColor} size={screenHeight < 768 ? 22 : 25} />
                        <Text style={{...styles.buttonText,color:themeColors.invalidColor}}>Logout</Text>

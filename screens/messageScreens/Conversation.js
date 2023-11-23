@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, FlatList, ScrollView, Platform, Image, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import { View, Text, TextInput, FlatList,  Platform, Image, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import Icon, { Icons } from '../../components/Icons';
 import { themeColors } from '../../theme';
 import { useRoute } from '@react-navigation/native';
@@ -13,155 +13,292 @@ import {
   onSnapshot,
   collection,
   setDoc,
+  arrayRemove,
+  arrayUnion,
 } from 'firebase/firestore';
 import { useUserData } from '../../components/userData';
+import ConversationModal from '../../components/ConversationModal';
+import Toast from 'react-native-root-toast';
+import * as Clipboard from 'expo-clipboard';
+import ConfirmModal from '../../components/ConfirmModal';
+
 
 const screenHeight = Dimensions.get('window').height;
 
 export default function Conversation({ navigation }) {
-  const route = useRoute();
-  const { id } = route.params;
-
-  const [userDataReceiver, setUserDataReceiver] = useState(null);
-  const [message, setMessage] = useState('');
-  const [messages, setMessages] = useState([]);
-
-  const { userData } = useUserData();
  
-  useEffect(() => {
-    console.log('User Data:', userData);
-  }, [userData]);
+const route = useRoute();
+const { id, convoID } = route.params;
+const [chatIDUseState, setChatID] = useState(null);
+const [userDataReceiver, setUserDataReceiver] = useState(null);
+const [newMessage, setMessage] = useState('');
+const [messages, setMessages] = useState([]);
+const [modalVisible, setModalVisible] = useState(false);
+const [confirmDeleteVisible, setConfirmDeleteVisible] = useState(false);
+const [selectedMessage, setSelectedMessage] = useState(null);
 
-  useEffect(() => {
-    const userRef = doc(FIREBASE_DB, 'User', id);
-    const unsubscribe = onSnapshot(userRef, (userSnapshot) => {
-      if (userSnapshot.exists()) {
-        const userData = userSnapshot.data();
-        setUserDataReceiver(userData);
-      } else {
-        console.log('User not found.');
-        // Handle the case where the user is not found, e.g., show an error message or navigate back.
+const onCloseConfirmModal = () => {
+  // Close the confirmation modal
+  setConfirmDeleteVisible(false);
+};
+
+const { userData } = useUserData();
+useEffect(() => {
+  console.log('User Data:', userData);
+}, [userData]);
+
+
+useEffect(() => {
+  const userRef = doc(FIREBASE_DB, 'User', id);
+  const unsubscribe = onSnapshot(userRef, (userSnapshot) => {
+    if (userSnapshot.exists()) {
+      const userData = userSnapshot.data();
+      setUserDataReceiver(userData);
+      console.log('User Found!!!');
+    } else {
+      console.log('User not found.');
+      // Handle the case where the user is not found, e.g., show an error message or navigate back.
+    }
+  });
+
+  return () => unsubscribe();
+}, [id]);
+
+useEffect(() => {
+  if (userDataReceiver && userData) {
+    const messagesCollection = collection(FIREBASE_DB, 'Messages');
+    const unsubscribe = onSnapshot(messagesCollection, async (querySnapshot) => {
+      const updatedMessages = [];
+
+      for (const messageDoc of querySnapshot.docs) {
+        const messageData = messageDoc.data();
+        setChatID(messageData.id);
+        if (
+          messageData.participants.includes(userData.id) &&
+          messageData.participants.includes(userDataReceiver.id)
+        ) {
+          const deletionInfo = messageData['deletedAt']?.find(
+            (deleteInfo) => deleteInfo.userId === userData.id
+          );
+
+          // Clone the messages array to avoid modifying the original array
+          const updatedMessagesArray = [...messageData.messages];
+
+          // Update isSeen field in the first message if the sender is not the current user
+          if (updatedMessagesArray.length > 0 && updatedMessagesArray[0].sender !== userData.id && !updatedMessagesArray[0].isSeen) {
+            updatedMessagesArray[0].isSeen = true;
+
+            // Reference to the specific message document
+            const messageDocRef = doc(FIREBASE_DB, 'Messages', messageDoc.id);
+
+            try {
+              // Update the document with the modified messages array
+              await updateDoc(messageDocRef, { messages: updatedMessagesArray });
+            } catch (error) {
+              console.error('Error updating Firestore:', error);
+            }
+          }
+
+          // Filter messages based on the deletion timestamp
+          const filteredMessages = updatedMessagesArray.filter(
+            (msg) => !deletionInfo || (deletionInfo && msg.timestamp > deletionInfo.timestamp)
+          );
+                // Update the state with the new messages data using unshift()
+                updatedMessages.push({
+                  ...messageData,
+                  messages: filteredMessages,
+                });
+        }
       }
+       setMessages(updatedMessages);
+       console.log("new Array:  ",updatedMessages);
     });
 
     return () => unsubscribe();
-  }, [id]);
+  }
+}, [userDataReceiver]);
 
-  useEffect(() => {
-    if (userDataReceiver && userData) {
-     // Define the Firestore collection where messages are stored
-     const messagesCollection = collection(FIREBASE_DB, 'Messages');
+const sendMessage = async () => {
+  const message = newMessage;
+  setMessage('');
+  try {
+    if (message.trim() !== '') {
+      // Reference to the 'Messages' collection
+      const conversationRef = collection(FIREBASE_DB, 'Messages');
 
-     // Create a subscription to listen for changes in the Firestore query
-     const unsubscribe = onSnapshot(messagesCollection, (querySnapshot) => {
-       // Initialize an array to store updated message data
-       const updatedMessages = [];
- 
-       // Loop through the documents in the Firestore query result
-       querySnapshot.forEach((doc) => {
-         const messageData = doc.data();
-         
-         // Check if both userData.id and userDataReceiver.id are participants
-         if (
-           messageData.participants.includes(userData.id) &&
-           messageData.participants.includes(userDataReceiver.id)
-         ) {
-           updatedMessages.push(messageData);
-         }
-       });
- 
-       // Update the state with the new messages data
-       setMessages(updatedMessages);
-     });
- 
-     // Return a cleanup function to unsubscribe from the Firestore listener when the component unmounts
-     return () => unsubscribe();
-   }
- }, [userDataReceiver]);
+      // Define the participants array for the query
+      const participantsArray = [userDataReceiver.id, userData.id];
 
-  const sendMessage = async () => {
-    try {
-      if (message.trim() !== '') {
-        // Create the new message data with the sender, text, and timestamp using Timestamp.now()
-        const newMessage = {
-          sender: userData.id,
-          text: message,
-          timestamp: Timestamp.now(),
-        };
+      // Create a unique chat ID based on user IDs
+      const chatID = participantsArray.sort().join('_');
 
-        // Reference to the 'Messages' collection
-        const conversationRef = collection(FIREBASE_DB, 'Messages');
+      // Get the chat document
+      const chatDocRef = doc(conversationRef, chatID);
+      const chatDoc = await getDoc(chatDocRef);
 
-        // Define the participants array for the query
-        const participantsArray = [userDataReceiver.id, userData.id];
+      if (chatDoc.exists()) {
+        // Chat document already exists, check if current user is in hideConversation
+        const hideConversationArray = chatDoc.data().hideConversation || [];
 
-        // Create a unique chat ID based on user IDs
-        const chatID = participantsArray.sort().join('_');
-
-        // Get the chat document
-        const chatDocRef = doc(conversationRef, chatID);
-        const chatDoc = await getDoc(chatDocRef);
-
-        if (chatDoc.exists()) {
-          // Chat document already exists, update it
-
-          // Get the existing messages
+        if (hideConversationArray.includes(userData.id) || hideConversationArray.includes(userDataReceiver.id)) {
+          // Either the current user or the receiver is in hideConversation
+          // Update the document to remove both users from hideConversation
+          await updateDoc(chatDocRef, {
+            hideConversation: arrayRemove(userData.id, userDataReceiver.id),
+          });
+          // User is not in hideConversation, proceed with updating the document
+          const existingMessages = chatDoc.data().messages || [];
+          // Update the document with the new message and update the latestMessage
+          await updateDoc(chatDocRef, {
+            messages: [
+              {
+                isSeen: false,
+                sender: userData.id,
+                text: message,
+                timestamp: Timestamp.now(),
+                deletedBy: [],
+              },
+              ...existingMessages, // Spread existing messages after the new one
+            ],
+          });
+          // Your other update logic here, if needed
+        } else {
+          // User is not in hideConversation, proceed with updating the document
           const existingMessages = chatDoc.data().messages || [];
 
           // Update the document with the new message and update the latestMessage
           await updateDoc(chatDocRef, {
-
             messages: [
-              ...existingMessages,
-              newMessage,
+              {
+                isSeen: false,
+                sender: userData.id,
+                text: message,
+                timestamp: Timestamp.now(),
+                deletedBy: [],
+              },
+              ...existingMessages, // Spread existing messages after the new one
             ],
-            latestMessage: {
-              sender: userData.id,
-              text: message,
-              timestamp: Timestamp.now(),
-            },
           });
-        } else {
-          // Chat document does not exist, create it
-          const chatData = {
-            show: true,
-            type:'conversation',
-            participants: participantsArray,
-            latestMessage: {
+        }
+      } else {
+        // Chat document does not exist, create it
+        const chatData = {
+          id: chatID,
+          hideConversation: [],
+          deletedAt: [],
+          type:[
+            { userId: userData.id, type: 'conversation'},
+            { userId: userDataReceiver.id, type: 'conversation' },
+          ],
+          participants: participantsArray,
+          messages: [
+            {
+              isSeen: false,
               sender: userData.id,
               text: message,
               timestamp: Timestamp.now(),
+              deletedBy: [],
             },
-            messages: [newMessage],
-          };
+          ],
+        };
 
-          await setDoc(chatDocRef, chatData);
+        await setDoc(chatDocRef, chatData);
+      }
+    }
+  } catch (error) {
+    console.error('Error sending message:', error);
+  }
+};
+
+const onConfirmDelete = async () => {
+  try {
+    if (selectedMessage) {
+      const { conversation } = selectedMessage;
+      const selectedMessageText = conversation.messages[selectedMessage.messageIndex]?.text || '';
+      const itemSender =  conversation.messages[selectedMessage.messageIndex]?.sender || '';   
+      const  messageIndex = selectedMessage.messageIndex;
+      // Check if item is not null and has a sender property
+      
+      console.log('selected Index:',messageIndex,"selected text:",selectedMessageText,"sender:",itemSender);
+
+      if (!selectedMessageText || !itemSender) {
+        console.error('Invalid selected message:', selectedMessageText);
+        return;
+      }
+
+      // Assuming chatIDUseState is set correctly elsewhere in your component
+      const chatId = chatIDUseState ? chatIDUseState : null;
+
+      console.log('Sender ID:', itemSender);
+
+      // Check if chatID is available
+      if (!chatId) {
+        console.error('Chat ID is not available');
+        return;
+      }
+
+       const messageDocRef = doc(FIREBASE_DB, 'Messages', chatId);
+
+      // Fetch the current state of the document
+      const docSnapshot = await getDoc(messageDocRef);
+
+      if (!docSnapshot.exists()) {
+        console.error('Message document does not exist');
+        return;
+      }
+
+      const currentDoc = docSnapshot.data();
+
+      // Get the sender of the selected message
+      const messageSender = itemSender;
+
+      // Create a copy of the messages array to avoid modifying the original array
+      const updatedMessages = [...currentDoc.messages];
+     console.log('Updated Messages:', updatedMessages);
+      //console.log('Selected Item Timestamp:', item.timestamp);
+
+      
+      if (messageIndex !== -1) {
+        // Check if the current user is the sender of the selected message
+        if (messageSender === userData.id) {
+          // The current user is the sender, add both user IDs to deletedBy
+          updatedMessages[messageIndex].deletedBy = Array.isArray(updatedMessages[messageIndex].deletedBy)
+            ? Array.from(new Set([...updatedMessages[messageIndex].deletedBy, userDataReceiver.id, userData.id]))
+            : [userDataReceiver.id, userData.id];
+        } else {
+          // The current user is not the sender, add only the current user's ID to deletedBy
+          updatedMessages[messageIndex].deletedBy = Array.isArray(updatedMessages[messageIndex].deletedBy)
+            ? Array.from(new Set([...updatedMessages[messageIndex].deletedBy, userData.id]))
+            : [userData.id];
         }
 
-        setMessage('');
+        // Update the document with the modified messages array
+        await setDoc(messageDocRef, { messages: updatedMessages }, { merge: true });
+      } else {
+        console.error('Selected message not found in the messages array');
       }
-    } catch (error) {
-      console.error('Error sending message:', error);
-    }
-  };
 
+      setConfirmDeleteVisible(false);
+    }
+  } catch (error) {
+    console.error('Error deleting message:', error);
+  }
+};
+ 
   const firstName = userDataReceiver ? userDataReceiver.firstName : '';
   const lastName = userDataReceiver ? userDataReceiver.lastName : '';
   const profilePic = userDataReceiver ? userDataReceiver.profilePic : '';
   const noImage = require('../../assets/images/noprofile.png');
- 
-  const [showTimestamp, setShowTimestamp] = useState(null);
-  function formatTimestamp(timestamp) {
-    // Parse the timestamp (you may need to adjust this based on your timestamp format)
-    const parsedTimestamp = new Date(timestamp);
-    
-    // Get the date and time components
-    const date = parsedTimestamp.toLocaleDateString();
-    const time = parsedTimestamp.toLocaleTimeString();
-  
-    return `${date} at ${time}`;
-  }
-  
+  const userOnline =userDataReceiver ? userDataReceiver.isOnline : 'false';
+  const isOnline = userOnline === 'true' ? 'Active now' : 'Offline';
+  const [showTimestamp, setShowTimestamp] = useState([]);
+  const [selectedTimestamp, setSelectedTimestamp] = useState(null);
+
+  const handleProfileSettings = () => {
+    // Handle navigation to the chat screen with the selected conversation
+    navigation.navigate('ConversationSettings', { id,convoID }); // Navigate to Conversation and pass the id
+  };
+
   return (
     <View style={styles.containerHolder}>
       <View style={styles.container} />
@@ -181,9 +318,9 @@ export default function Conversation({ navigation }) {
         <View style={{ flex: 1, alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }}>
           <View style={{ flexDirection: 'column' }}>
             <Text style={styles.headerText}>{firstName} {lastName}</Text>
-            <Text style={styles.headerTextSub}>Online</Text>
+            <Text style={styles.headerTextSub}>{isOnline}</Text>
           </View>
-          <TouchableOpacity style={{ marginEnd: 20 }}>
+          <TouchableOpacity onPress={handleProfileSettings} style={{ marginEnd: 20 }}>
             <Icon
               type={Icons.Feather}
               name="info"
@@ -193,66 +330,148 @@ export default function Conversation({ navigation }) {
           </TouchableOpacity>
         </View>
       </View>
+      
       <FlatList
-      data={messages}
-      keyExtractor={(item, index) => index.toString()}
-      renderItem={({ item }) => (
-        <View style={styles.chatContainer}>
-          <View style={styles.messagesContainer}>
-            {item.messages.map((message, msgIndex) => (
-                console.log('TIME:',message.timestamp),
+  data={messages}
+  keyExtractor={(item, index) => `${item.id}-${index}`}
+  renderItem={({ item: conversation,index }) => {
+  
+    return (
+      <View style={styles.chatContainer}>
+        <View style={styles.messagesContainer}>
+          {conversation.messages.map((message, msgIndex) => {
+            const isUserDeleted = message.deletedBy && message.deletedBy.includes(userData.id);
+    
+            // If the current user deleted the message, render null to hide the message
+            if (isUserDeleted) {
+              return null;
+            }
+    
+            return (
               <TouchableOpacity
-                key={msgIndex}
+                key={`${conversation.id}-${msgIndex}`}
                 style={[
                   styles.messageContainer,
-                  message.sender === userData.id
-                    ? styles.receiverMessage
-                    : styles.senderMessage,
+                  message.sender === userData.id ? styles.receiverMessage : styles.senderMessage,
                 ]}
                 onPress={() => {
                   // Toggle the showTimestamp state for the tapped message
-                  setShowTimestamp(msgIndex === showTimestamp ? null : msgIndex);
+                  const updatedShowTimestamps = [...showTimestamp];
+                  const key = `${conversation.id}-${msgIndex}`;
+    
+                  if (selectedTimestamp === key) {
+                    // If the selected timestamp is already shown, reset it
+                    setSelectedTimestamp(null);
+                  } else {
+                    // Otherwise, toggle the state
+                    updatedShowTimestamps[key] = !updatedShowTimestamps[key];
+                    setSelectedTimestamp(key);
+                  }
+                  setShowTimestamp(updatedShowTimestamps);
+                }}
+                onLongPress={() => {
+                  setModalVisible(true);
+                  setSelectedMessage({ conversation, messageIndex: msgIndex });
                 }}
               >
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  {/* Check if the sender is the current user */}
                   {message.sender === userData.id ? (
                     <View style={styles.textContainer}>
-                      <Text style={styles.messageTextSender}>{message.text}</Text>
+                      <Text style={styles.messageTextSender}>
+                        {message.text}
+                      </Text>
                     </View>
                   ) : (
                     <>
                       <Image
-                        source={{ uri: userDataReceiver.profilePic }}
+                        source={userDataReceiver.profile ? { uri: userDataReceiver.profile } : require('../../assets/images/noprofile.png')}
                         style={styles.avatar}
                       />
                       <View style={styles.textContainer}>
-                        <Text style={styles.messageTextReceiver}>{message.text}</Text>
+                        <Text style={styles.messageTextReceiver}>
+                          {typeof message.text === 'string' ? message.text : ''}
+                        </Text>
                       </View>
                     </>
                   )}
                 </View>
-          
-                {/* Render the timestamp if the showTimestamp state matches the message index */}
-                {msgIndex === showTimestamp && (
-                  <Text style={message.sender === userData.id ? 
-                    styles.timestampTextSender : styles.timestampTextReceiver}> {message.timestamp
-                    ? format(message.timestamp.toDate(), 'MMM d \'AT\' h:mm a')
-                    : 'Invalid Timestamp'}</Text>
+                {showTimestamp[`${conversation.id}-${msgIndex}`] && (
+                  <Text
+                    style={
+                      message.sender === userData.id
+                        ? styles.timestampTextSender
+                        : styles.timestampTextReceiver
+                    }
+                  >
+                    {message.timestamp
+                      ? format(message.timestamp.toDate(), "MMM d 'AT' h:mm a")
+                      : 'Invalid Timestamp'}
+                  </Text>
                 )}
               </TouchableOpacity>
-            ))}
-          </View>
+            );
+          }).reverse()}
+          {modalVisible && (
+            <ConversationModal
+              visible={modalVisible}
+              onClose={() => setModalVisible(false)}
+              onRemove={() => {
+                setModalVisible(false);
+                setConfirmDeleteVisible(true);
+              }}
+              onCopy={async () => {
+                if (selectedMessage) {
+                  const { conversation, messageIndex } = selectedMessage;
+                  const selectedMessageText = conversation.messages[messageIndex]?.text || '';
+                  console.log('Selected:', selectedMessageText, 'at index:', messageIndex);
+    
+                  // Use Clipboard from 'react-native-clipboard' package
+                  await Clipboard.setStringAsync(selectedMessageText);
+    
+                  // Optionally, you can show a notification or perform other actions
+                  // to indicate that the text has been copied.
+                  if (Platform.OS === 'ios') {
+                    Toast.show('Copied to clipboard.', {
+                      duration: Toast.durations.LONG,
+                      position: Toast.positions.BOTTOM,
+                      backgroundColor: 'rgba(0,0,0,0.7)',
+                      textColor: themeColors.bg,
+                      shadow: false,
+                      animation: true,
+                      hideOnPress: true,
+                      delay: 0,
+                    });
+                  }
+                }
+                setModalVisible(false);
+              }}
+              title={'Choose an option'}
+            />
+          )}
+          {confirmDeleteVisible && (
+            <ConfirmModal
+              visible={confirmDeleteVisible}
+              onClose={onCloseConfirmModal}
+              onConfirm={onConfirmDelete}
+              title="Delete this message?"
+              buttonName={'Delete'}
+              bgColor={themeColors.invalidColor}
+              message={selectedMessage.conversation.messages[selectedMessage.messageIndex]?.text || ''}
+            />
+          )}
         </View>
-      )}
-      inverted={true}
-    />
-
+      </View>
+    );
+    
+  }}
+  inverted={true}
+/>
+     
       <View style={styles.inputContainer}>
         <TextInput
           style={styles.messageInput}
           placeholder="Type a message. . ."
-          value={message}
+          value={newMessage}
           multiline={true}
           onChangeText={(text) => setMessage(text)}
         />
@@ -268,6 +487,7 @@ export default function Conversation({ navigation }) {
     </View>
   );
 }
+
 const styles = StyleSheet.create({
     containerHolder:{
         flex: 1,

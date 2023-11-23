@@ -17,7 +17,7 @@ import { collection, getDocs } from 'firebase/firestore'; // Add these imports
 
 const screenHeight = Dimensions.get('window').height;
 
-export default function AddNewMessage({ navigation }) {
+export default function Search({ navigation }) {
     
   const [searchText, setSearchText] = useState('');
   const [allUsers, setAllUsers] = useState([]); // List to store all users
@@ -73,7 +73,7 @@ export default function AddNewMessage({ navigation }) {
           </TouchableOpacity>
         </View>
         <View style={styles.headerCenter}>
-          <Text style={styles.headerText}>New Message</Text>
+          <Text style={styles.headerText}>Search</Text>
         </View>
       </View>
       <View style={styles.searchStyle}>
@@ -83,9 +83,8 @@ export default function AddNewMessage({ navigation }) {
           color={themeColors.grey}
           size={screenHeight < 768 ? 20 : 23}
         />
-        <Text style={{ color: themeColors.grey, marginLeft: 5 }}>To:</Text>
         <TextInput
-          placeholder="Type a name"
+          placeholder="Search here . . ."
           style={styles.searchInput}
           value={searchText}
           onChangeText={setSearchText}
@@ -93,7 +92,7 @@ export default function AddNewMessage({ navigation }) {
       </View>
 
       {filteredUsers.length === 0 && searchText !== '' ? ( // Check if no results and there's user input
-        <View style={styles.emptyResults}>
+       <View style={styles.emptyResults}>
             <Image style={styles.imageStyle} source={require('../../assets/images/sandbox.png')} />
           <Text style={styles.emptyResultsText}>No results found</Text>
           <Text style={styles.emptyResultsTextSub}>Try again with a different spelling or combination of terms. Complete words usually work best.</Text>
