@@ -14,7 +14,6 @@ import {
   collection,
   setDoc,
   arrayRemove,
-  arrayUnion,
 } from 'firebase/firestore';
 import { useUserData } from '../../components/userData';
 import ConversationModal from '../../components/ConversationModal';
@@ -24,11 +23,13 @@ import ConfirmModal from '../../components/ConfirmModal';
 
 
 const screenHeight = Dimensions.get('window').height;
-
+const screenWidth = Dimensions.get('window').width;
 export default function Conversation({ navigation }) {
  
 const route = useRoute();
 const { id, convoID } = route.params;
+console.log('convoID:',convoID);
+const [chatConvoID,setChatConvoID] = useState(null);
 const [chatIDUseState, setChatID] = useState(null);
 const [userDataReceiver, setUserDataReceiver] = useState(null);
 const [newMessage, setMessage] = useState('');
@@ -64,6 +65,9 @@ useEffect(() => {
   return () => unsubscribe();
 }, [id]);
 
+const userId = userData? userData.id : '';
+const userReceiverId = userDataReceiver ? userDataReceiver.id : '';
+
 useEffect(() => {
   if (userDataReceiver && userData) {
     const messagesCollection = collection(FIREBASE_DB, 'Messages');
@@ -77,6 +81,7 @@ useEffect(() => {
           messageData.participants.includes(userData.id) &&
           messageData.participants.includes(userDataReceiver.id)
         ) {
+          setChatConvoID(messageData.id);
           const deletionInfo = messageData['deletedAt']?.find(
             (deleteInfo) => deleteInfo.userId === userData.id
           );
@@ -127,7 +132,7 @@ const sendMessage = async () => {
       const conversationRef = collection(FIREBASE_DB, 'Messages');
 
       // Define the participants array for the query
-      const participantsArray = [userDataReceiver.id, userData.id];
+      const participantsArray = [userData.id,userDataReceiver.id];
 
       // Create a unique chat ID based on user IDs
       const chatID = participantsArray.sort().join('_');
@@ -284,19 +289,25 @@ const onConfirmDelete = async () => {
     console.error('Error deleting message:', error);
   }
 };
- 
-  const firstName = userDataReceiver ? userDataReceiver.firstName : '';
-  const lastName = userDataReceiver ? userDataReceiver.lastName : '';
-  const profilePic = userDataReceiver ? userDataReceiver.profilePic : '';
+  
+    const blockedUsers = userData && userData['blockedUsers'] ? userData['blockedUsers'] : [];
+    const blockedByOtherUsers = userDataReceiver && userDataReceiver['blockedUsers'] ? userDataReceiver['blockedUsers'] : [];
+    const isBlocked = blockedUsers?.some(
+      (blocked) => blocked.userId === userReceiverId
+    ) || blockedByOtherUsers?.some((blocked)=> blocked.userId === userId );
+  
+  const firstName = userDataReceiver && !isBlocked ? userDataReceiver.firstName : 'Chatme';
+  const lastName = userDataReceiver && !isBlocked ? userDataReceiver.lastName : 'User';
+  const profilePic = userDataReceiver && !isBlocked ? userDataReceiver.profilePic : '';
   const noImage = require('../../assets/images/noprofile.png');
-  const userOnline =userDataReceiver ? userDataReceiver.isOnline : 'false';
+  const userOnline =userDataReceiver && !isBlocked ? userDataReceiver.isOnline : 'false';
   const isOnline = userOnline === 'true' ? 'Active now' : 'Offline';
   const [showTimestamp, setShowTimestamp] = useState([]);
   const [selectedTimestamp, setSelectedTimestamp] = useState(null);
 
   const handleProfileSettings = () => {
     // Handle navigation to the chat screen with the selected conversation
-    navigation.navigate('ConversationSettings', { id,convoID }); // Navigate to Conversation and pass the id
+    navigation.navigate('ConversationSettings', { id,convoID:chatConvoID }); // Navigate to Conversation and pass the id
   };
 
   return (
@@ -320,6 +331,7 @@ const onConfirmDelete = async () => {
             <Text style={styles.headerText}>{firstName} {lastName}</Text>
             <Text style={styles.headerTextSub}>{isOnline}</Text>
           </View>
+          <View style={{display: messages.length > 0 ? 'flex':'none'}}>
           <TouchableOpacity onPress={handleProfileSettings} style={{ marginEnd: 20 }}>
             <Icon
               type={Icons.Feather}
@@ -328,6 +340,8 @@ const onConfirmDelete = async () => {
               size={screenHeight < 768 ? 20 : 30}
             />
           </TouchableOpacity>
+          </View>
+          
         </View>
       </View>
       
@@ -384,7 +398,7 @@ const onConfirmDelete = async () => {
                   ) : (
                     <>
                       <Image
-                        source={userDataReceiver.profile ? { uri: userDataReceiver.profile } : require('../../assets/images/noprofile.png')}
+                        source={userDataReceiver.profilePic && !isBlocked ? { uri: userDataReceiver.profilePic } : require('../../assets/images/noprofile.png')}
                         style={styles.avatar}
                       />
                       <View style={styles.textContainer}>
@@ -466,8 +480,7 @@ const onConfirmDelete = async () => {
   }}
   inverted={true}
 />
-     
-      <View style={styles.inputContainer}>
+     {!isBlocked ? (  <View style={styles.inputContainer}>
         <TextInput
           style={styles.messageInput}
           placeholder="Type a message. . ."
@@ -483,7 +496,19 @@ const onConfirmDelete = async () => {
             size={screenHeight < 768 ? 30 : 35}
           />
         </TouchableOpacity>
-      </View>
+      </View>) : (
+        <View style={{padding:20,alignItems:'center'}}>
+        <View style={{
+          marginBottom:10,
+          height: 0.6, 
+          borderRadius: 25,
+          width: screenWidth, 
+          backgroundColor: '#ccc',}}/>
+        <Text style={{marginBottom:3,fontWeight:'normal',fontSize:12}}>You can't reply to this conversation.
+        </Text>
+        <Text style={{color:'gray',fontSize:13}}>This person is unavailable</Text>
+        </View>
+      )}
     </View>
   );
 }

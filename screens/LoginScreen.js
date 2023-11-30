@@ -9,7 +9,7 @@ import { signInWithEmailAndPassword } from 'firebase/auth';
 import {FIREBASE_AUTH,FIREBASE_DB} from '../config/firebase';
 import CustomModal from '../components/CustomModal';
 import { getDocs,doc,updateDoc,where,collection,query } from 'firebase/firestore';
-import { decode } from 'base-64';
+import { decode, encode } from 'base-64';
 
 export default function LoginScreen() {
 
@@ -17,93 +17,120 @@ export default function LoginScreen() {
  
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [primaryPassword, setPrimaryPassword] = useState('');
- 
+
+
+  const screenWidth = Dimensions.get('window').height;
+  const marginTop = screenWidth < 768 ? 'mt-3': 'mt-1';
   const [iconName,setIcon] = useState('');
   const [inValid, InvalidCredential] = useState('');
   const [titleError,setTitle] = useState('');
 
-  const screenWidth = Dimensions.get('window').height;
-  const marginTop = screenWidth < 768 ? 'mt-3': 'mt-1';
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   
-  
-  const openModalInvalid = () => {
-    setModalVisible(true);
-  };
  
-  const closeModal = () => {
-    setModalVisible(false);
-  };
+ 
 
   const handleOkayInvalid = () => {
-    // Handle 'Okay' button press
-    InvalidCredential('');
-    closeModal();
+      // Handle 'Okay' button press
+      setModalVisible(false);
+      
   };
   
   const handleLogin = async () => {
   
     try {
-      setLoading(true);
+      // Check if email and password are provided
       if (email && password) {
         const userCollectionRef = collection(FIREBASE_DB, 'User');
         const userQuery = query(userCollectionRef, where('email', '==', email));
         const userQuerySnapshot = await getDocs(userQuery);
-        
-        if (userQuerySnapshot.docs.length > 0) {
-          // Assuming there's only one user with a given email
-          const userData = userQuerySnapshot.docs[0].data();
   
+        // Check if user with the given email exists
+        if (userQuerySnapshot.docs.length > 0) {
+          const userData = userQuerySnapshot.docs[0].data();
+          
+          // Check primary password
+          const primaryCheck = await isPrimaryPassword(password, userData.primaryPassword);
+  
+          // Check secondary password if available
           if (userData.secondPassword) {
-            // Assuming you have a function like isSecondaryPassword for checking the secondary password
-            const secondaryCheck =  await isSecondaryPassword(password, userData.secondPassword);
-              
-            if (secondaryCheck === true) {
+            setLoading(true);
+            const secondaryCheck = await isSecondaryPassword(password, userData.secondPassword);
+  
+            if (secondaryCheck) {
+              // Hide user after successful login
               const conversationDocRef = doc(FIREBASE_DB, 'User', userData.id);
               await updateDoc(conversationDocRef, {
                 loggedAs: 'hidden',
               });
+  
+              // Delay for a better user experience
               await new Promise((resolve) => setTimeout(resolve, 2000));
-               setLoading(false);
-              await signInWithEmailAndPassword(FIREBASE_AUTH, email, decodeFromBase64(userData.primaryPassword)); // Use password here, not primaryPassword
+              setLoading(false);
+  
+              // Sign in with primary password
+              await signInWithEmailAndPassword(FIREBASE_AUTH, email, decodeFromBase64(userData.primaryPassword));
             }
-          }
-
-          const primaryCheck = await isPrimaryPassword(password, userData.primaryPassword);
+          } 
+          
           if (primaryCheck) {
+            setLoading(true);
+            // Show user as normal after successful login
             const conversationDocRef = doc(FIREBASE_DB, 'User', userData.id);
             await updateDoc(conversationDocRef, {
               loggedAs: 'normal',
             });
+          }
+          
+          try{
+            //if not primary nor secondpassword check only the password if it's the current password of the user
+            //maybe it is the reset password
+            setLoading(true);
+            const conversationDocRef = doc(FIREBASE_DB, 'User', userData.id);
+            await updateDoc(conversationDocRef, {
+              primaryPassword: encode(password),
+            });
             await new Promise((resolve) => setTimeout(resolve, 2000));
             setLoading(false);
             await signInWithEmailAndPassword(FIREBASE_AUTH, email, password);
+
+          }catch{
+            setLoading(false);
+            showLoginError('Account not found. Double-check your login details.');
           }
+           
           setLoading(false);
-          openModalInvalid();
-          InvalidCredential('Tip: Double-check your login details.');
-          setTitle('Account not found.');
-          setIcon('alert-circle-outline');
+          showLoginError('Account not found. Double-check your login details.');
+       
+        } else {
+          // User not found
+          setLoading(false);
+          showLoginError('Account not found. Double-check your login details.');
         }
       } else {
+        // Empty fields
         setLoading(false);
-        console.log('Login error: Empty fields');
-        openModalInvalid();
-        InvalidCredential('Tip: Enter your credentials to log in.');
-        setTitle('Empty fields');
-        setIcon('alert-circle-outline');
+        showLoginError('Enter your credentials to log in.');
       }
+     
     } catch (err) {
+      // General login error
       setLoading(false);
-      console.log('Login error:', err.message);
-      openModalInvalid();
-      InvalidCredential('Tip: Double-check your login details.');
-      setTitle('Account not found.');
-      setIcon('alert-circle-outline');
+      showLoginError('Double-check your login details. Account not found.');
     }
   };
+  const showLoginError = (message) => {
+    setModalVisible(true);
+    InvalidCredential(`Tip: ${message}`);
+    setTitle('Login Error');
+    setIcon('alert-circle-outline');
+  };
+     // Function to encode to base64
+     function encodeToBase64(data) {
+      const encodedData = encode(data);
+      return encodedData;
+    }
     // Function to decode base64 data
     function decodeFromBase64(base64Data) {
       const decodedData = decode(base64Data);
@@ -117,6 +144,7 @@ async function isPrimaryPassword(enteredPassword, storedPrimaryPassword) {
     const decodedPrimaryPassword = decodeFromBase64(storedPrimaryPassword);
     // Compare entered password with the decoded primary password
     const result = enteredPassword === decodedPrimaryPassword ? true : false;
+    console.log('result primary:',result);
     return result;
   } catch (error) {
     console.error('Error decoding or comparing passwords:', error);
@@ -129,6 +157,7 @@ async function isSecondaryPassword(enteredPassword, storedSecondaryPassword) {
     // Decode base64-encoded secondary password
     const decodedSecondaryPassword = decodeFromBase64(storedSecondaryPassword);
     const result = enteredPassword === decodedSecondaryPassword ? true : false;
+    console.log('result secondary:',result);
     return result;
   } catch (error) {
     console.error('Error decoding or comparing passwords:', error);
@@ -184,18 +213,21 @@ async function isSecondaryPassword(enteredPassword, storedSecondaryPassword) {
           paddingBottom: screenWidth < 768 ? -1 : 4}}
       />
 
-            <TouchableOpacity className="flex items-end">
-            <Text className="text-gray-700 mb-5 my-3" style={styles.text}>Forgot Password?</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('ForgotPassword')} className="flex items-end">
+            <Text className="text-gray-700 mb-5 my-3"
+             style={{...styles.text,
+             color:themeColors.semiBlack,marginBottom:20,fontSize:14}}>
+              Forgot Password?</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={handleLogin}
-              className="py-3 rounded-3xl" style={{backgroundColor: themeColors.semiBlack}}>
+              className="py-2.5 rounded-3xl" style={{backgroundColor: themeColors.semiBlack}}>
                 <Text 
                     className="text-xl font-bold text-center text-white"
                 >
                         Login
                 </Text>
              </TouchableOpacity>
-             <View className="flex-row justify-center mt-7">
+             <View className="flex-row justify-center mt-4">
               <Text className="text-gray-500 font-semibold">
                   Don't have an account?
               </Text>
@@ -213,13 +245,9 @@ async function isSecondaryPassword(enteredPassword, storedSecondaryPassword) {
         </View>
         </View>
     </Modal> )}  
-     {inValid && (
-        <CustomModal iconName={iconName} title={titleError} message={inValid} visible={modalVisible} onClose={closeModal} onOkay={handleOkayInvalid} />
-      )}
+    <CustomModal iconName={iconName} title={titleError} message={inValid} visible={modalVisible}  onOkay={handleOkayInvalid} />
     </View>
-  
-  )
-
+  );
 }
 const styles = StyleSheet.create({
   text: {

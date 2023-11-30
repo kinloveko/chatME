@@ -4,15 +4,15 @@ import { getFirestore } from 'firebase/firestore';
 import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
 import { getStorage } from 'firebase/storage';
 
-   const firebaseConfig = {
-    apiKey: "AIzaSyCSlI8MQg3LMfZYvwJ_XjESYChQOelxPu0",
-    authDomain: "chatme-a94af.firebaseapp.com",
-    projectId: "chatme-a94af",
-    storageBucket: "chatme-a94af.appspot.com",
-    messagingSenderId: "184326536003",
-    appId: "1:184326536003:web:a41d6cb92abc9d9bc0cdf6",
-    measurementId: "G-C2394634VJ"
-  };
+const firebaseConfig = {
+  apiKey: "AIzaSyDTHgIiQ9e5nIIj0sJQlwGXr1DLCR7kbqA",
+  authDomain: "chat-me-app-2023.firebaseapp.com",
+  projectId: "chat-me-app-2023",
+  storageBucket: "chat-me-app-2023.appspot.com",
+  messagingSenderId: "731825114045",
+  appId: "1:731825114045:web:5153f3d29684624af7e0d4",
+  measurementId: "G-55FDBJX05K"
+};
 
   const FIREBASE_APP = initializeApp(firebaseConfig);
   const auth = initializeAuth(FIREBASE_APP, {

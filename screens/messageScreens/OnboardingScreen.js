@@ -94,7 +94,7 @@ const OnboardingScreen = ({navigation}) => {
     return (
       <View
         style={{
-          height: height * 0.25,
+          height: height * 0.18,
           justifyContent: 'space-between',
           paddingHorizontal: 20,
         }}>
@@ -225,8 +225,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   image: {
-    height: '100%',
-    width: '100%',
+    height: '80%',
+    width: '80%',
     resizeMode: 'contain',
   },
   indicator: {

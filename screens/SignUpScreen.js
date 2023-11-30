@@ -5,14 +5,15 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { ArrowLeftIcon } from 'react-native-heroicons/solid'; 
 import { useNavigation } from '@react-navigation/native'; 
 import InputWithIcon from '../components/InputWithIcon';
-import { createUserWithEmailAndPassword, sendEmailVerification} from 'firebase/auth';
+import { createUserWithEmailAndPassword,signOut,getAuth, sendEmailVerification} from 'firebase/auth';
 import {FIREBASE_AUTH, FIREBASE_DB} from '../config/firebase';
 import { doc, setDoc } from "firebase/firestore";
 import CustomModal from '../components/CustomModal';
 import { encode } from 'base-64';
+import { get } from 'lodash';
 
 export default function SignUpScreen() {
-
+   
     const navigation = useNavigation();
     const [firstName, setFirstName] = useState('');
     const [lastName, setLastName] = useState('');
@@ -57,8 +58,8 @@ export default function SignUpScreen() {
             setFirstNameError('First name is required!');
           } else if (firstName.length < 2) {
             setFirstNameError('First name must have 2 characters or more!');
-          } else if (!/^[A-Za-z]+$/.test(firstName)) {
-            setFirstNameError('First name should not contain numbers or spaces!');
+          }else if (!/^[A-Za-z]+(?: [A-Za-z]+)*$/.test(firstName)) {
+            setFirstNameError('Last name should not contain number and spaces in (beginning or end) are allowed');
           } else {
             setFirstNameError('');
           }
@@ -143,7 +144,8 @@ export default function SignUpScreen() {
       // Create user with email and password
         const userCredential = await createUserWithEmailAndPassword(FIREBASE_AUTH, email, password);
         const user = userCredential.user;
-          // Send email verification
+        
+        // Send email verification
         await sendEmailVerification(user);
         // Save additional user data in Firestore
         const isOnline = "true";
@@ -164,8 +166,10 @@ export default function SignUpScreen() {
           isOnline,
           primaryPassword: passEncode,
           loggedAs,
+          blockedUsers:[],
         };
         await setDoc(userDocRef, userData, { merge: true });
+        
         console.log('User data saved in Firestore.');
         console.log('Email verification sent. Please check your email.');
         } catch (err) {
@@ -190,7 +194,6 @@ export default function SignUpScreen() {
       const encodedData = encode(data);
       return encodedData;
     }
-
 
     const screenWidth = Dimensions.get('window').height;
     const textSize = screenWidth < 768 ? 'text-xs' : '';

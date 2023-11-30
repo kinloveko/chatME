@@ -14,11 +14,12 @@ import Icon, { Icons } from '../../components/Icons';
 import { themeColors } from '../../theme';
 import { FIREBASE_DB } from '../../config/firebase';
 import { collection, getDocs } from 'firebase/firestore'; // Add these imports
-
+import { useUserData } from '../../components/userData';
 const screenHeight = Dimensions.get('window').height;
 
 export default function AddNewMessage({ navigation }) {
-    
+  const {userData} = useUserData();  
+  const userId = userData ? userData.id : '';
   const [searchText, setSearchText] = useState('');
   const [allUsers, setAllUsers] = useState([]); // List to store all users
   const [filteredUsers, setFilteredUsers] = useState([]); // List to store filtered users
@@ -31,23 +32,35 @@ export default function AddNewMessage({ navigation }) {
         const querySnapshot = await getDocs(usersCollection);
         const users = querySnapshot.docs.map((doc) => {
           const data = doc.data();
-          return {
-            id: doc.id,
-            firstName: data.firstName,
-            lastName: data.lastName,
-            profilePic: data.profilePic,
-          };
+          const favorites = userData && userData['favoriteUsers'] ? userData['favoriteUsers'] : [];
+          const blockedUsers = userData && userData['blockedUsers'] ? userData['blockedUsers'] : [];
+          const blockedByOtherUsers = data && data['blockedUsers'] ? data['blockedUsers'] : [];
+          const isBlocked = data.id === userId || favorites?.includes(data.id) || blockedUsers?.some(
+            (blocked) => blocked.userId === data.id 
+          ) || blockedByOtherUsers?.some((blocked)=> blocked.userId === userId );
+          // Exclude the user if they are blocked
+          
+          return !isBlocked ? 
+             {
+                id: doc.id,
+                firstName: data.firstName,
+                lastName: data.lastName,
+                profilePic: data.profilePic,
+              }: '';
         });
-
-        setAllUsers(users);
+  
+        // Filter out the null values (blocked users)
+        const filteredUsers = users.filter((user) => user !== '');
+  
+        setAllUsers(filteredUsers);
       } catch (error) {
         console.error('Error fetching all users:', error);
       }
     };
-
+  
     fetchAllUsers();
-  }, []); // Fetch users when the component mounts
-
+  }, [userData]); // Fetch users when the component mounts or when userData changes
+  
     useEffect(() => {
         // Filter users based on user's input
         const filtered = allUsers.filter((user) =>
@@ -57,9 +70,11 @@ export default function AddNewMessage({ navigation }) {
     }, [searchText, allUsers]);
     
     const handleSelectName = (id) => {
-        console.log('id',id);
-        navigation.navigate('Conversation', { id });
+      const convoID = userData.id + '_' + id
+      console.log('id',id);
+      navigation.navigate('Conversation', { id,convoID });
       };
+      
   const noImage = require('../../assets/images/noprofile.png');
   return (
     <View style={styles.container}>

@@ -5,21 +5,15 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { ArrowLeftIcon } from 'react-native-heroicons/solid'; 
 import InputWithIcon from '../../components/InputWithIcon';
  import {FIREBASE_DB} from '../../config/firebase';
-import { doc, setDoc,getDoc,updateDoc } from "firebase/firestore";
+import { doc, setDoc  } from "firebase/firestore";
 import CustomModal from '../../components/CustomModal';
 import { encode,decode } from 'base-64';
 import { useUserData } from '../../components/userData';
 import { useRoute } from '@react-navigation/native';
 
-
-export default function AddPasswordFavorites({navigation}) {
-    
-    const route = useRoute();
-    const {from,convoID} = route.params;
-    console.log("from:",from);
-    if(convoID!==null)
-    console.log("convoID",convoID);
+export default function UpdatePassword({navigation}) {
   
+    
     const { userData } = useUserData();
     useEffect(() => {
         console.log('User Data:', userData);
@@ -28,10 +22,13 @@ export default function AddPasswordFavorites({navigation}) {
     const userId = userData? userData.id : '';
     const [password, setPassword] = useState('');
     const [confirmpassword, setConfirmPassword] = useState('');
+    const [oldPassword, setOldPassword] = useState('');
     const [passwordErrors, setPasswordError] = useState('');
     const [confirmPasswordError, setConfirmPasswordError] = useState('');
+    const [oldPasswordErrors, setOldPasswordError] = useState('');
     const [isPasswordValid, setIsPasswordValid] = useState('');
     const [isConfirmPasswordValid, setConfirmPasswordValid] = useState('');
+    const [oldPasswordValid, setOldPasswordValid] = useState('');
     const [iconName,setIcon] = useState('');
     const [inValid, InvalidCredential] = useState('');
     const [titleError,setTitle] = useState('');
@@ -45,22 +42,32 @@ export default function AddPasswordFavorites({navigation}) {
       setModalVisible(false);
     };
 
-    const whereTo =  from === 'Profile' && from !==null ? 'Profile' : 'ConversationSettings';
-    console.log('where:',whereTo);
     const handleOkayInvalid = () => {
       // Handle 'Okay' button press
       InvalidCredential('');
       closeModal();
       if(iconName === 'checkmark-circle')
-      navigation.navigate('FavoritesMessage',{whereTo});
-      
+      navigation.navigate('AccountSettings');
     };
 
     const handleSignUp = async () => {
-        // Password validation
+    
+        const primaryPassword = decodeFromBase64(userData.primaryPassword);
         let isValid = true; // Flag to check overall password validity
         let isValidConfirm = true;
-        
+        let oldPasswordValidBoolean = false;
+
+        if(!oldPassword){
+            setOldPasswordError('Current password is required!');
+            oldPasswordValidBoolean = false;
+        }else if(oldPassword !== primaryPassword){
+            setOldPasswordError('Current password is incorrect');
+            oldPasswordValidBoolean = false;
+        }
+        else{
+            oldPasswordValidBoolean = true;
+        }
+
         if (!password) {
           setPasswordError('Password is required!');
           isValid = false;
@@ -81,7 +88,11 @@ export default function AddPasswordFavorites({navigation}) {
             setPasswordError('Password must be at least 6 characters long');
             isValid = false;
           }
+          else{
+            isValid = true;
+          }
         }
+    
       
         // Confirm Password validation
         if (!confirmpassword) {
@@ -95,69 +106,48 @@ export default function AddPasswordFavorites({navigation}) {
           isValidConfirm = true;
         }
       
-        if (isValid && isValidConfirm) {
+        if (isValid && isValidConfirm && oldPasswordValidBoolean) {
           // Continue with the rest of your logic
           setPasswordError('');
           setConfirmPasswordError('');
+          setOldPasswordError('');
           setIsPasswordValid(true);
           setConfirmPasswordValid(true);
-      
+          setOldPasswordValid(true);
+
           try {
-           const mainPass = decodeFromBase64(userData.primaryPassword);
-           
-           if(mainPass === password){
-                InvalidCredential('Password must be unique from your main password!');
+            if(userData.secondPassword !== null){
+                const secondPrimary = decodeFromBase64(userData.secondPassword);
+                if(secondPrimary === password){
+                     InvalidCredential('Password must be unique from your second password!');
+                     setTitle('Error: Not a unique password');
+                     setIcon('alert-circle-outline');
+                     openModalInvalid();
+                     setColorPicked('');
+                     return;
+                 }
+            }
+
+             if(primaryPassword === password){
+                InvalidCredential('Password must be unique from your current password!');
                 setTitle('Error: Not a unique password');
                 setIcon('alert-circle-outline');
                 openModalInvalid();
                 setColorPicked('');
-                
-            }else{
-              
-              if (password && confirmpassword) {
+                return;
+            }
+            else{
+              if (oldPassword && password && confirmpassword) {
 
                     const passEncode = encodeToBase64(password);
                     const userDocRef = doc(FIREBASE_DB, 'User', userId);
                     const userData = {
-                      secondPassword: passEncode,
+                      primaryPassword: passEncode,
                     };
                     await setDoc(userDocRef, userData, { merge: true });
                    
-                    if (whereTo === 'ConversationSettings' && convoID !== null) {
-                      const conversationDocRef = doc(FIREBASE_DB, 'Messages', convoID);
-                    
-                      try {
-                        // Get the current conversation data
-                        const conversationSnapshot = await getDoc(conversationDocRef);
-                    
-                        if (conversationSnapshot.exists()) {
-                          const conversationData = conversationSnapshot.data();
-                    
-                          // Check if 'type' field is defined in the document
-                          if (conversationData && conversationData.type) {
-                            const isUserTypeIndex = conversationData.type.findIndex(item => item.userId === userId);
-                    
-                            if (isUserTypeIndex !== -1) {
-                              // User is already in the 'type' array, update the timestamp
-                              const updatedType = [...conversationData.type];
-                              updatedType[isUserTypeIndex] = {
-                                type: 'favorites',
-                                userId: userId,
-                              };
-                    
-                              await updateDoc(conversationDocRef, {
-                                type: updatedType,
-                              });
-                            }
-                          }
-                        }
-                      } catch (error) {
-                        console.error('Error updating document:', error);
-                      }
-                    }
-                    
-                    InvalidCredential('You can now logout and use your second password to access favorite messages!');
-                    setTitle('Password Created!');
+                    InvalidCredential('Your password has been update. Please click the button to continue.');
+                    setTitle('Password Updated!');
                     setIcon('checkmark-circle');
                     openModalInvalid();
                     setColorPicked(themeColors.semiBlack);
@@ -168,8 +158,12 @@ export default function AddPasswordFavorites({navigation}) {
             console.log('Error:',err.message);
           }
         }
+        else{
+          console.log('Error');
+        }
       };
       
+
     // Function to encode to base64
     function encodeToBase64(data) {
       const encodedData = encode(data);
@@ -192,12 +186,11 @@ export default function AddPasswordFavorites({navigation}) {
   <View className="flex-1 bg-white" style={{backgroundColor: themeColors.bg}}>
     <SafeAreaView className="flex">
     <View className="flex flex-row items-center justify-start ml-2 mt-2">
-    <TouchableOpacity onPress={() => navigation.goBack()} 
+    <TouchableOpacity onPress={() => navigation.goBack()} style={{marginStart:10}}
     className="p-2 rounded-2xl bg-white rounded-bl-2xl md-4 ml-3">
-      <ArrowLeftIcon size="25"  color={themeColors.semiBlack} />
+      <ArrowLeftIcon size="20"  color={themeColors.semiBlack} />
     </TouchableOpacity>
     </View>
-
     </SafeAreaView>
     
     <View className={`flex-1 bg-white px-8`}>
@@ -211,21 +204,36 @@ export default function AddPasswordFavorites({navigation}) {
     
     <Text className={`ml-2`} 
     style={{ color:themeColors.semiBlack,fontWeight: 'bold', fontSize:screenWidth < 768 ? 22: 26, marginTop: 10, marginBottom: 1 }}>
-      Create a password</Text>
+      Change password</Text>
     <Text className={`ml-2`} 
     style={{ fontWeight: 'semibold',color: 'gray', fontSize:screenWidth < 768 ? 15: 17, marginTop: 5, marginBottom: 20 }}>
-    Your password must be at least 6 characters and should include a combination of number, letters and special characters. Ensure it's not the same as your main password!
+   Your password must be at least 6 characters and should include a combination of number, letters and special characters.
     </Text>
     <View style={{flex:1,alignItems:'center'}}>
      </View>
    
     <View className="form space-y-2">
 
-    <Text style={{marginTop:20,}} className={`${textSize} text-gray-700 ml-2`}>Password</Text>
-    
+ 
+    <Text style={{marginTop:20,}} className={`${textSize} text-gray-700 ml-2`}>Current password</Text>
     <InputWithIcon
       iconName="lock"
-      placeholder="Password"
+      placeholder="New password"
+      value={oldPassword}
+      onChangeText={value => setOldPassword(value)}
+      secureTextEntry={true}
+      setError={setOldPasswordError}
+      hasError={oldPasswordErrors}
+      onTyping={() => setOldPasswordError('')}
+      isValid={oldPasswordValid}
+      style={{paddingTop: screenWidth < 768 ? -1 : 4,
+        paddingBottom: screenWidth < 768 ? -1 : 4}}
+    />
+    <Text style={{color:themeColors.invalidColor,marginBottom:1,marginStart:5}}>{oldPasswordErrors}</Text>
+    <Text style={{marginTop:20,}} className={`${textSize} text-gray-700 ml-2`}>New Password</Text>
+    <InputWithIcon
+      iconName="lock"
+      placeholder="Re-type new Password"
       value={password}
       onChangeText={value => setPassword(value)}
       secureTextEntry={true}
@@ -236,8 +244,7 @@ export default function AddPasswordFavorites({navigation}) {
       style={{paddingTop: screenWidth < 768 ? -1 : 4,
         paddingBottom: screenWidth < 768 ? -1 : 4}}
     />
-
-    <Text style={{color:themeColors.invalidColor,marginBottom:5,marginStart:5}}>{passwordErrors}</Text>
+    <Text style={{color:themeColors.invalidColor,marginBottom:1,marginStart:5}}>{passwordErrors}</Text>
     <Text className={`${textSize} text-gray-700 ml-2`}>Confirm Password</Text>
     <InputWithIcon
       iconName="lock"
@@ -253,8 +260,7 @@ export default function AddPasswordFavorites({navigation}) {
         paddingBottom: screenWidth < 768 ? -1 : 4}}
     />
 
-    <Text style={{color:themeColors.invalidColor,marginBottom:5,marginStart:5}}>{confirmPasswordError}</Text>
-
+    <Text style={{color:themeColors.invalidColor,marginBottom:20,marginStart:5}}>{confirmPasswordError}</Text>
 
     <TouchableOpacity
       className={`${buttonText}  rounded-3xl m-5`}

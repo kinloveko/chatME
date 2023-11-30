@@ -10,19 +10,21 @@ import {
   Dimensions,
   FlatList,
 } from 'react-native';
+import Toast from 'react-native-root-toast';
 import Icon, { Icons } from '../../components/Icons';
 import { themeColors } from '../../theme';
 import { FIREBASE_DB } from '../../config/firebase';
-import { collection, getDocs } from 'firebase/firestore'; // Add these imports
-
+import { collection, getDocs,updateDoc,doc,getDoc } from 'firebase/firestore'; // Add these imports
+import { useUserData } from '../../components/userData';
 const screenHeight = Dimensions.get('window').height;
 
 export default function Search({ navigation }) {
-    
+
+  const {userData} = useUserData();
   const [searchText, setSearchText] = useState('');
   const [allUsers, setAllUsers] = useState([]); // List to store all users
   const [filteredUsers, setFilteredUsers] = useState([]); // List to store filtered users
-
+  const userId = userData ? userData.id : '';
   useEffect(() => {
     // Fetch all users from Firebase Firestore and store them in the list
     const fetchAllUsers = async () => {
@@ -31,23 +33,35 @@ export default function Search({ navigation }) {
         const querySnapshot = await getDocs(usersCollection);
         const users = querySnapshot.docs.map((doc) => {
           const data = doc.data();
-          return {
-            id: doc.id,
-            firstName: data.firstName,
-            lastName: data.lastName,
-            profilePic: data.profilePic,
-          };
+          const favorites = userData && userData['favoriteUsers'] ? userData['favoriteUsers'] : [];
+          const blockedUsers = userData && userData['blockedUsers'] ? userData['blockedUsers'] : [];
+          const blockedByOtherUsers = data && data['blockedUsers'] ? data['blockedUsers'] : [];
+          const isBlocked = data.id === userId || favorites?.includes(data.id) || blockedUsers?.some(
+            (blocked) => blocked.userId === data.id 
+          ) || blockedByOtherUsers?.some((blocked)=> blocked.userId === userId );
+          // Exclude the user if they are blocked
+          
+          return !isBlocked ? 
+              {
+                id: doc.id,
+                firstName: data.firstName,
+                lastName: data.lastName,
+                profilePic: data.profilePic,
+              }: '';
         });
-
-        setAllUsers(users);
+  
+        // Filter out the null values (blocked users)
+        const filteredUsers = users.filter((user) => user !== '');
+  
+        setAllUsers(filteredUsers);
       } catch (error) {
         console.error('Error fetching all users:', error);
       }
     };
-
+  
     fetchAllUsers();
-  }, []); // Fetch users when the component mounts
-
+  }, [userData]); // Fetch users when the component mounts or when userData changes
+  
     useEffect(() => {
         // Filter users based on user's input
         const filtered = allUsers.filter((user) =>
@@ -57,8 +71,9 @@ export default function Search({ navigation }) {
     }, [searchText, allUsers]);
     
     const handleSelectName = (id) => {
-        console.log('id',id);
-        navigation.navigate('Conversation', { id });
+     
+      navigation.navigate('Conversation', { id,convoID:'' });
+    
       };
   const noImage = require('../../assets/images/noprofile.png');
   return (
@@ -76,10 +91,11 @@ export default function Search({ navigation }) {
           <Text style={styles.headerText}>Search</Text>
         </View>
       </View>
+     
       <View style={styles.searchStyle}>
         <Icon
           type={Icons.Feather}
-          name="edit-3"
+          name="search"
           color={themeColors.grey}
           size={screenHeight < 768 ? 20 : 23}
         />
@@ -150,7 +166,7 @@ const styles = StyleSheet.create({
       alignItems: 'flex-start',
     },
     headerCenter: {
-      right:10,
+      marginStart:-30,
       flex: 1,
       alignItems: 'center',
     },
@@ -193,6 +209,7 @@ const styles = StyleSheet.create({
     },
     searchInput: {
       zIndex:999,
+      paddingStart:10,
       color: themeColors.semiBlack,
       flex: 1,
       paddingVertical: screenHeight < 768 ? 10 : 11,
@@ -202,7 +219,6 @@ const styles = StyleSheet.create({
       width: screenHeight < 768 ? 25 : 30,
       height: screenHeight < 768 ? 25 : 30,
     },
-    
     suggestionItem: {
       marginTop:5,
       flexDirection: 'row',

@@ -14,7 +14,18 @@ import ConversationSettings from '../screens/messageScreens/ConversationSettings
 import FavoritesMessage from '../screens/messageScreens/FavoritesMessage';
 import OnboardingScreen from '../screens/messageScreens/OnboardingScreen';
 import AddPasswordFavorites from '../screens/messageScreens/AddPasswordFavorites';
+import UpdatePasswordFavorites from '../screens/messageScreens/UpdatePasswordFavorites';
 import Search from '../screens/messageScreens/Search';
+import AccountSettings from '../screens/Settings/AccountSettings';
+import PersonalDetails from '../screens/Settings/PersonalDetails';
+import UpdatePassword from '../screens/Settings/UpdatePassword';
+import PrivacySettings from '../screens/Settings/PrivacySettings';
+import ActiveStatus from '../screens/Settings/ActiveStatus';
+import BlockingSettings from '../screens/Settings/BlockingSettings';
+import BlockedSearch from '../screens/Settings/BlockedSearch';
+import ForgotPassword from '../screens/ForgotPassword';
+import SearchFavorites from '../screens/messageScreens/SearchFavorites';
+
 
 const Stack = createNativeStackNavigator();
 
@@ -29,7 +40,7 @@ export default function AppNavigation() {
   return (
     <NavigationContainer>
       <Stack.Navigator initialRouteName={user ? 'Home' : 'Splash'}>
-        {user ? (
+        {user  ? (
           // Authenticated user views
           <>
           <Stack.Screen name="Home" options={{ headerShown: false }} component={HomeScreen} />
@@ -40,7 +51,16 @@ export default function AppNavigation() {
           <Stack.Screen name="OnboardingScreen" options={{ headerShown: false }} component={OnboardingScreen} />
           <Stack.Screen name="AddPasswordFavorites" options={{ headerShown: false }} component={AddPasswordFavorites} />
           <Stack.Screen name="Search" options={{ headerShown: false }} component={Search} />
-         
+          <Stack.Screen name="UpdatePasswordFavorites" options={{ headerShown: false }} component={UpdatePasswordFavorites} />
+          <Stack.Screen name="AccountSettings" options={{ headerShown: false }} component={AccountSettings} />
+           <Stack.Screen name="PersonalDetails" options={{ headerShown: false }} component={PersonalDetails} />
+          <Stack.Screen name="UpdatePassword" options={{ headerShown: false }} component={UpdatePassword} />
+          <Stack.Screen name="PrivacySettings" options={{ headerShown: false }} component={PrivacySettings} />
+          <Stack.Screen name="ActiveStatus" options={{ headerShown: false }} component={ActiveStatus} />
+          <Stack.Screen name="BlockingSettings" options={{ headerShown: false }} component={BlockingSettings} />
+          <Stack.Screen name="BlockedSearch" options={{ headerShown: false }} component={BlockedSearch} />
+          <Stack.Screen name="SearchFavorites" options={{ headerShown: false }} component={SearchFavorites} />
+          
           </>
           ) : (
           // Non-authenticated user views
@@ -49,7 +69,7 @@ export default function AppNavigation() {
             <Stack.Screen name="Welcome" options={{ headerShown: false }} component={WelcomeScreen} />
             <Stack.Screen name="Login" options={{ headerShown: false }} component={LoginScreen} />
             <Stack.Screen name="SignUp" options={{ headerShown: false }} component={SignUpScreen} />
-           
+            <Stack.Screen name="ForgotPassword" options={{ headerShown: false }} component={ForgotPassword} />
           </>
         )}
       </Stack.Navigator>

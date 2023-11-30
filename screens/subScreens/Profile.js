@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Image,Platform, TouchableOpacity, StyleSheet, ScrollView, SafeAreaView, Dimensions } from 'react-native';
+import { View, Text, Image,Platform, TouchableOpacity, StyleSheet,Modal,ActivityIndicator, ScrollView, SafeAreaView, Dimensions } from 'react-native';
 import { useUserData } from '../../components/userData';
 import { themeColors } from '../../theme';
 import Icon, { Icons } from '../../components/Icons';
@@ -9,28 +9,50 @@ import {  doc, updateDoc, setDoc, getDoc } from 'firebase/firestore';
 import { FIREBASE_DB,FIREBASE_STORAGE } from '../../config/firebase'; // Replace with the correct path to your firebase.js file
 import { getAuth, signOut } from 'firebase/auth';
 import * as ImagePicker from 'expo-image-picker';
+import { CommonActions } from '@react-navigation/native';
+import ConfirmModal from '../../components/ConfirmModal';
 
 const screenHeight = Dimensions.get('window').height;
 const screenWidth = Dimensions.get('window').width;
 export default function ProfileScreen({ navigation }) {
-
+ 
+  
     const { userData } = useUserData();
     useEffect(() => {
         console.log('User Data:', userData);
     }, [userData]);
     const auth = getAuth();
+    const [loading, setLoading] = useState(false);
+    const [isConfirmModalVisible, setConfirmModalVisible] = useState(false);
+    const onCloseConfirmModal = () => {
+           // Close the confirmation modal
+           setConfirmModalVisible(false);
+          
+         };
+    const onConfirmLogout = () => {
+      setConfirmModalVisible(false);
+      handleLogout();
+    }     
     const handleLogout = async () => {
       try {
      // Get the user's Firestore document reference
+     setLoading(true);
       const userDocRef = doc(FIREBASE_DB, 'User', userData.id);
 
       // Update the isOnline field to "false"
       await updateDoc(userDocRef, {
         isOnline: 'false',
       });
-
+      // Delay for a better user experience
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        setLoading(false);
         await signOut(auth); // Sign the user out
-        navigation.navigate('Splash'); // Navigate to the login screen or any other screen you prefer
+        navigation.dispatch(
+          CommonActions.reset({
+            index: 0,
+            routes: [{ name: 'Login' }], // Navigate to the 'Splash' screen
+          })
+        );
       } catch (error) {
         console.error('Logout error:', error);
       }
@@ -44,7 +66,7 @@ export default function ProfileScreen({ navigation }) {
     const [image, setImage] = useState(null);
     const hasSecondPassword = userData ? userData.secondPassword : null;
 
-
+   
     const handlePress = async () => {
         // Request permission to access the gallery (camera roll)
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -145,7 +167,7 @@ export default function ProfileScreen({ navigation }) {
   <View style={styles.headerCenter}>
     <Text style={styles.headerText}>My Profile</Text>
   </View>
-  <TouchableOpacity onPress={handleLogout} >
+  <TouchableOpacity onPress={() => setConfirmModalVisible(true)} >
       <Icon type={Icons.Feather}
                name="log-out" 
                color={themeColors.semiBlack} 
@@ -223,7 +245,7 @@ export default function ProfileScreen({ navigation }) {
               <View style={styles.line} />
               <View style={{width:'100%',marginTop:30}}>
                     
-                    <TouchableOpacity style={styles.buttonContainer}>
+                    <TouchableOpacity onPress={() => navigation.navigate('AccountSettings')} style={styles.buttonContainer}>
                        <View style={styles.buttonColumn}>
                          <Icon type={Icons.Feather} name="settings" color={themeColors.semiBlack} size={screenHeight < 768 ? 22 : 25} />
                            <Text style={styles.buttonText}>Account Settings</Text>
@@ -232,7 +254,7 @@ export default function ProfileScreen({ navigation }) {
                              height: screenHeight < 768 ? 25:30}} 
                              source={require('../../assets/icons/right.png')}/>
                    </TouchableOpacity> 
-                   <TouchableOpacity style={styles.buttonContainer}>
+                   <TouchableOpacity onPress={() => navigation.navigate('PrivacySettings')} style={styles.buttonContainer}>
                        <View style={styles.buttonColumn}>
                          <Icon type={Icons.Feather} name="lock" color={themeColors.semiBlack} size={screenHeight < 768 ? 22 : 25} />
                            <Text style={styles.buttonText}>Privacy Settings</Text>
@@ -256,17 +278,38 @@ export default function ProfileScreen({ navigation }) {
                              source={require('../../assets/icons/right.png')}/>
                    </TouchableOpacity> 
           
-           <TouchableOpacity onPress={handleLogout} style={styles.buttonContainer}>
+           <TouchableOpacity onPress={() => setConfirmModalVisible(true)} style={styles.buttonContainer}>
                    <View style={styles.buttonColumn}>
                      <Icon type={Icons.Feather} name="log-out" color={themeColors.invalidColor} size={screenHeight < 768 ? 22 : 25} />
-                       <Text style={{...styles.buttonText,color:themeColors.invalidColor}}>Logout</Text>
+                       <Text style={{...styles.buttonText,color:themeColors.invalidColor}}>Log out</Text>
                    </View>
                        <Image style={{width: screenHeight < 768 ? 25:30,
                          height: screenHeight < 768 ? 25:30,tintColor:themeColors.invalidColor}} 
                          source={require('../../assets/icons/right.png')}/>
                </TouchableOpacity> 
                </View>
-         
+               <ConfirmModal
+                visible={isConfirmModalVisible}
+                onClose={onCloseConfirmModal}
+                onConfirm={onConfirmLogout}
+                buttonName={'Log out'}
+                bgColor={themeColors.semiBlack}
+                title="Log out of ChatME?"
+                message="You can always log back in at any time."
+              />
+
+
+               {loading && ( 
+                <Modal transparent={true} animationType="fade" visible={loading}>
+                    <View style={{backgroundColor:'rgba(0, 0, 0, 0.5)',flex:1,justifyContent:'center'}}>
+                    <View style={{ backgroundColor: 'white',marginLeft:15,marginRight:15 , paddingLeft: 25,paddingRight:25,paddingBottom:20,paddingTop:30, borderRadius: 20 }}>
+                      <ActivityIndicator size="large" color="gray" />
+                      <Text style={{textAlign:'center',color:themeColors.semiBlack,marginTop:10,fontWeight:'bold'}}>Logging out...</Text>
+                    </View>
+                    </View>
+                </Modal> )} 
+
+
   </ScrollView>
         </SafeAreaView>
     );

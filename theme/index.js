@@ -6,5 +6,6 @@ export const themeColors = {
     invalidColor:'#F15846',
     validColor: '#25AD6B',
     semiGray: '#F4F4F4',
+    semiGrayTwo: '#fafafa',
     onlineGreen: '#32CD32',
  }   

@@ -7,22 +7,26 @@ import {
   TouchableOpacity,
   Dimensions, Modal, ActivityIndicator,
 } from 'react-native';
-import {Timestamp,onSnapshot,arrayUnion,doc,updateDoc, getDoc} from '@firebase/firestore';
+import {Timestamp,onSnapshot,arrayUnion,arrayRemove,doc,updateDoc, getDoc} from '@firebase/firestore';
 import { useUserData } from '../../components/userData';
 import { themeColors } from '../../theme';
 import Icon, { Icons } from '../../components/Icons';
 import { FIREBASE_DB } from '../../config/firebase';
 import ConfirmModal from '../../components/ConfirmModal';
 import { useRoute } from '@react-navigation/native';
+import Toast from 'react-native-root-toast';
+import CustomModal from '../../components/CustomModal';
+
 const screenHeight = Dimensions.get('window').height;
 
 export default function ConversationSettings({navigation}) {
     
     const route = useRoute();
     const { id, convoID } = route.params;
+    console.log('convoID Settings:',convoID);
     const { userData } = useUserData();
     const userId = userData? userData.id : '';
-
+    const [userDataReceiver, setUserDataReceiver] = useState(null);
     useEffect(() => {
         console.log('User Data:', userData);
       }, [userData]);
@@ -43,17 +47,24 @@ export default function ConversationSettings({navigation}) {
       }, [id]);
       
     const noImage = require('../../assets/images/noprofile.png');
-    const [userDataReceiver, setUserDataReceiver] = useState(null);
-    const profilePic = userDataReceiver ? userDataReceiver.profilePic : '';
-    const firstName = userDataReceiver ? userDataReceiver.firstName : '';
-    const lastName = userDataReceiver ? userDataReceiver.lastName : '';
-    const userOnline =userDataReceiver ? userDataReceiver.isOnline : 'false';
+    const userReceiverId = userDataReceiver ? userDataReceiver.id : '';
+    const blockedUsers = userData && userData['blockedUsers'] ? userData['blockedUsers'] : [];
+    const blockedByOtherUsers = userDataReceiver && userDataReceiver['blockedUsers'] ? userDataReceiver['blockedUsers'] : [];
+    const isBlocked = blockedUsers?.some(
+      (blocked) => blocked.userId === userReceiverId
+    ) || blockedByOtherUsers?.some((blocked)=> blocked.userId === userId );
+    
+    const profilePic = userDataReceiver && !isBlocked ? userDataReceiver.profilePic : '';
+    const firstName = userDataReceiver && !isBlocked  ? userDataReceiver.firstName : 'Chatme';
+    const lastName = userDataReceiver && !isBlocked ? userDataReceiver.lastName : 'User';
+    const userOnline =userDataReceiver && !isBlocked ? userDataReceiver.isOnline : 'false';
     const isOnline = userOnline === 'true' ? 'Active now' : 'Offline';
     const [isConfirmModalVisible, setConfirmModalVisible] = useState(false);
   
     const [loading, setLoading] = useState(false);
     const [isFavorite, setIsFavorite] = useState('');
 
+    
     useEffect(() => {
       const conversationDocRef = doc(FIREBASE_DB, 'Messages', convoID);
     
@@ -89,7 +100,23 @@ export default function ConversationSettings({navigation}) {
     const messageConfirm = isFavorite === 'conversation' ? `Adding ${firstName} to your favorites excludes it from the message list and places it directly in the favorites list.`: 
     `Removing ${firstName} to your favorites excludes it from your favorite list and places it back to your message list.` ;
     const bgColorFav = isFavorite === 'conversation' ? themeColors.semiBlack: themeColors.invalidColor;
-    
+    const [iconName,setIcon] = useState('');
+    const [inValid, InvalidCredential] = useState('');
+    const [titleError,setTitle] = useState('');
+    const [modalVisibleConfirm, setModalVisibleConfirm] = useState(false);
+    const [colorPicked,setColorPicked] = useState('');
+    const openModalInvalid = () => {
+      setModalVisibleConfirm(true);
+    };
+   
+    const closeModal = () => {
+      setModalVisibleConfirm(false);
+    };
+    const handleOkayInvalid = () => {
+      InvalidCredential('');
+      closeModal();
+      navigation.navigate('Chat');
+    };
 
     const onDeleteConversation = () => {
         setConfirmModalVisible(true);
@@ -148,12 +175,78 @@ export default function ConversationSettings({navigation}) {
           routes: [{ name: 'Home' }],
         });
       };
+
       const [isConfirmBlock, setConfirmBlock] = useState(false);
       const onBlockThisPerson = () => {
         setConfirmBlock(true);
       }
-      const onConfirmButtonBlockThisPerson = () => {
+
+      const onConfirmButtonBlockThisPerson = async () => {
         setConfirmBlock(false);
+        setLoading(true);
+     
+        try{
+          const userDocRefUser = doc(FIREBASE_DB, 'User',userId);
+          const userToBlocked = userDataReceiver ? userDataReceiver.id : '';
+          const userIds ={userId:userToBlocked} ;
+          await updateDoc(userDocRefUser, {
+            blockedUsers:  arrayUnion(userIds),
+          });
+          
+          if (userData !== null) {
+            try{
+               
+                const userDocRefMessages = doc(FIREBASE_DB, 'Messages', convoID);
+                const docSnapshot = await getDoc(userDocRefMessages);
+                
+                if (docSnapshot.exists()) {
+                
+                 await updateDoc(userDocRefMessages, {
+                  hideConversation: arrayUnion(userId),
+                  blockedUsers: arrayUnion(userIds),
+                });
+
+                }
+
+            }catch(error){
+                setLoading(false);
+                console.error('Error blocking the user:', error);
+                Toast.show('Error:Please try again!', {
+                  duration: Toast.durations.SHORT,
+                  position: Toast.positions.BOTTOM,
+                  backgroundColor: 'rgba(0,0,0,0.7)',
+                  textColor: themeColors.bg,
+                  shadow: false,
+                  animation: true,
+                  hideOnPress: true,
+                  delay: 0,
+                });
+            }
+          }
+        
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+          setLoading(false);
+          InvalidCredential('User has been blocked you can check it in your blocking settings');
+          setTitle('Blocked Successfully!');
+          setIcon('checkmark-circle');
+          openModalInvalid();
+          setColorPicked(themeColors.semiBlack);
+
+        }
+        catch(error){
+          setLoading(false);
+          console.error('Error blocking the user:', error);
+          Toast.show('Error:Please try again!', {
+            duration: Toast.durations.SHORT,
+            position: Toast.positions.BOTTOM,
+            backgroundColor: 'rgba(0,0,0,0.7)',
+            textColor: themeColors.bg,
+            shadow: false,
+            animation: true,
+            hideOnPress: true,
+            delay: 0,
+          });
+        }
       }
       const onCloseConfirmButtonBlock = () => {
         setConfirmBlock(false);
@@ -188,7 +281,24 @@ export default function ConversationSettings({navigation}) {
                   await updateDoc(conversationDocRef, {
                     type: updatedType,
                   });
+
+                       // Get the user's Firestore document reference
+                  const userDocRef = doc(FIREBASE_DB, 'User', userData.id);
+                  if(isFavorite === 'conversation'){
+                    // Update the isOnline field to "false"
+                    await updateDoc(userDocRef, {
+                      favoriteUsers: arrayUnion(userReceiverId),
+                    });
+                  }
+                  else{
+                      // Update the isOnline field to "false"
+                      await updateDoc(userDocRef, {
+                        favoriteUsers: arrayRemove(userReceiverId),
+                      });
+                  }
+               
                 }
+
                 await new Promise((resolve) => setTimeout(resolve, 2000));
                 setLoading(false);
                 if(isFavorite === 'conversation')
@@ -259,7 +369,7 @@ export default function ConversationSettings({navigation}) {
         <Text style={styles.texts}>Actions</Text>        
     </View>
     <View style={{width:'100%',flex:1,marginTop:10}}>
-                    
+                     <View style={{display: !isBlocked ? 'flex':'none'}}>
                        <TouchableOpacity onPress={onFavThisPerson} style={styles.buttonContainer}>
                           <View style={styles.buttonColumn}>
                             <Icon type={Icons.Feather} name="heart" color={themeColors.semiBlack} size={screenHeight < 768 ? 22 : 25} />
@@ -269,6 +379,7 @@ export default function ConversationSettings({navigation}) {
                                 height: screenHeight < 768 ? 25:30}} 
                                 source={require('../../assets/icons/right.png')}/>
                       </TouchableOpacity>
+                      </View>
                       <TouchableOpacity onPress={onDeleteConversation} style={styles.buttonContainer}>
                           <View style={styles.buttonColumn}>
                             <Icon type={Icons.Feather} name="trash" color={themeColors.semiBlack} size={screenHeight < 768 ? 22 : 25} />
@@ -278,7 +389,7 @@ export default function ConversationSettings({navigation}) {
                                 height: screenHeight < 768 ? 25:30}} 
                                 source={require('../../assets/icons/right.png')}/>
                       </TouchableOpacity> 
-                      <View style={{display:isFavorite === 'conversation'? 'flex':'none'}}>
+                      <View style={{display:isFavorite === 'conversation' ? 'flex':'none'}}>
                       <TouchableOpacity onPress={onBlockThisPerson} style={styles.buttonContainer}>
                             <View style={styles.buttonColumn}>
                                 <Icon type={Icons.Feather} name="minus-circle" color={themeColors.invalidColor} size={screenHeight < 768 ? 22 : 25} />
@@ -334,6 +445,9 @@ export default function ConversationSettings({navigation}) {
         message={messageConfirm}
       /> 
      )}
+     {inValid && (
+      <CustomModal iconName={iconName} colorItem={colorPicked} title={titleError} message={inValid} visible={modalVisibleConfirm} onClose={closeModal} onOkay={handleOkayInvalid} />
+    )}
     </View>
   )
 };
@@ -447,9 +561,10 @@ const styles = StyleSheet.create({
       height: screenHeight < 768 ? 25 : 30,
     },
     profilePic: {
+        alignSelf:'center',
         marginTop:20,
-        width: screenHeight * 0.17,
-        height: screenHeight * 0.17,
+        width: screenHeight * 0.18,
+        height: screenHeight * 0.18,
         borderRadius: 95,
       },
   });

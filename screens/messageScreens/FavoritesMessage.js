@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View,
+  View,TextInput,
   Text,
   StyleSheet,
-  Image,
+  Image,TouchableWithoutFeedback,
   TouchableOpacity,
   FlatList,
   Dimensions,
@@ -286,7 +286,7 @@ export default function FavoritesMessage({navigation}) {
       <View style={{alignItems:'center',flex:1}} >
         <Text style={styles.texts} >Favorites</Text>
       </View>
-      <TouchableOpacity  >
+      <TouchableOpacity onPress={()=> navigation.navigate('UpdatePasswordFavorites',{whereTo})}  >
       <Icon type={Icons.Feather}
                name="settings" 
                color={themeColors.semiBlack} 
@@ -294,6 +294,29 @@ export default function FavoritesMessage({navigation}) {
                style={{marginEnd:10,marginStart:-35}}/>
      </TouchableOpacity>
     </View>
+    <View style={{marginTop:10}} />
+    <TouchableWithoutFeedback styles={{backgroundColor:'yellow',flex:1,zIndex:999}} onPress={() => {
+                 if(!userData.isVerified){
+                 return setVerificationModalVisible(true);
+                }
+                else
+                navigation.navigate('SearchFavorites')
+        }} >
+      <View style={styles.searchStyle}>
+        <Icon type={Icons.Feather} name="search" color={themeColors.grey} size={screenHeight < 768 ? 20 : 23} />
+        <TextInput
+          placeholder="Search . . . "
+          style={{
+            color: themeColors.semiBlack,
+            flex: 1,
+            padding: screenHeight < 768 ? 10 : 11,
+            fontSize: screenHeight < 768 ? 15 : 17,
+          }}
+          pointerEvents="none"
+          editable={false}
+        />
+      </View>
+    </TouchableWithoutFeedback> 
 
   {conversations.length === 0 || userLoggedAs === 'normal' ? (
     <View style={styles.emptyResults}>
@@ -303,7 +326,7 @@ export default function FavoritesMessage({navigation}) {
     </View>
   ) : (
     <View style={{flex:1}}>
-   <FlatList  style={{flexGrow:0,height:'17%',marginTop:10}}
+   <FlatList  style={{flexGrow:0,height:'18%',marginTop:10}}
     horizontal
     data={profileInfo.filter(item => !item.hideConversation?.includes(userData.id))}
     keyExtractor={(item, index) => `${item.id}-${index}`} // Combine item.id with index for a unique key
@@ -401,6 +424,26 @@ export default function FavoritesMessage({navigation}) {
 }
 
 const styles = StyleSheet.create({
+  searchStyle:{
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginStart:20,
+    marginEnd:20,
+    paddingHorizontal: 16, // Adjust the padding as needed
+    backgroundColor:themeColors.semiGray,
+    borderRadius: 25,
+    ...Platform.select({
+        ios: {
+            marginTop:0, 
+        },
+        android: {
+            marginTop: 30, 
+        },
+        default: {
+            marginTop:0,
+        },
+      }),
+},
   emptyResults: {
     zIndex:-999,
     flex:1,

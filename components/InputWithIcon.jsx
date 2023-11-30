@@ -67,7 +67,7 @@ const styles = {
   },
   input: {
     flex: 1,
-    height: 40, // Adjust the height as needed
+    height: 40, 
   },
 };
 

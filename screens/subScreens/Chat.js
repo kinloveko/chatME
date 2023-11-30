@@ -8,8 +8,9 @@ import {
   Image,
   TouchableOpacity,
   FlatList,
-  Dimensions,
+  Dimensions, Modal, ActivityIndicator,
 } from 'react-native';
+import Toast from 'react-native-root-toast';
 import {Timestamp,onSnapshot,arrayUnion, collection,doc, query, where,updateDoc, getDoc} from '@firebase/firestore';
 import { useNavigation } from '@react-navigation/native';
 import { useUserData } from '../../components/userData';
@@ -19,23 +20,81 @@ import { FIREBASE_DB } from '../../config/firebase';
 import MessageItem from '../../components/MessageItem';
 import CustomModalBottom from '../../components/CustomModalBottom';
 import ConfirmModal from '../../components/ConfirmModal';
+import CustomModal from '../../components/CustomModal';
+import EmailModal from '../../components/EmailModal';
+import { getAuth,onAuthStateChanged } from 'firebase/auth';
 
 const screenHeight = Dimensions.get('window').height;
 const screenWidth = Dimensions.get('window').width;
 export default function ChatScreen() {
- 
+  const auth = getAuth();
+  const navigation = useNavigation();
   const { userData } = useUserData();
   useEffect(() => {
     console.log('User Data:', userData);
   }, [userData]);
-   const userId = userData? userData.id : '';
-  const navigation = useNavigation();
+  const userId = userData? userData.id : '';
+  const [isVerificationModalVisible, setVerificationModalVisible] = useState(false);
   const [profileInfo, setProfileInfo] = useState([]);
   const [conversations, setConversations] = useState([]);
-
   const [isConfirmModalVisible, setConfirmModalVisible] = useState(false);
   const [isModalVisible, setModalVisible] = useState(false);
   const [selectedConversation, setSelectedConversation] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [iconName,setIcon] = useState('');
+  const [inValid, InvalidCredential] = useState('');
+  const [titleError,setTitle] = useState('');
+  const [modalVisibleConfirm, setModalVisibleConfirm] = useState(false);
+  const [colorPicked,setColorPicked] = useState('');
+  const [verificationComplete,setVerificationComplete] = useState(false);
+
+  const handleVerificationComplete =()=>{
+    setVerificationComplete(false);
+  };
+  const handleVerificationCompleteClose = () =>{
+    setVerificationComplete(false);
+  }
+
+useEffect(() => {
+  if (userData && !userData.isVerified) {
+    // If the user is not verified, show the verification modal
+    setVerificationModalVisible(true);
+  }
+}, [userData]);
+
+const handleVerificationConfirm = async () => {
+  auth.currentUser.reload();
+  if(auth.currentUser.emailVerified === true){
+    const userDocRef = doc(FIREBASE_DB, 'User', userId);
+      await updateDoc (userDocRef,{
+        isVerified: true,
+      });
+    setVerificationModalVisible(false);
+    setVerificationComplete(true);
+  }
+  else{
+    auth.currentUser.reload();
+    console.log('auth.currentUser.emailVerified:',auth.currentUser.emailVerified);
+    setVerificationModalVisible(true);
+  }
+};
+    const handleVerificationClose = () => {
+      // Implement the logic when the user closes the verification modal
+      // For example, you can navigate the user to another screen
+      // Close the modal after handling the close action
+      setVerificationModalVisible(false);
+    };
+  const openModalInvalid = () => {
+    setModalVisibleConfirm(true);
+  };
+ 
+  const closeModal = () => {
+    setModalVisibleConfirm(false);
+  };
+  const handleOkayInvalid = () => {
+    InvalidCredential('');
+    closeModal();
+  };
 
   useEffect(() => {
     const fetchProfileInfo = async () => {
@@ -48,6 +107,13 @@ export default function ChatScreen() {
         );
 
         const unsubscribe = onSnapshot(messagesQuery, async (querySnapshot) => {
+          if (querySnapshot.empty || querySnapshot === null) {
+            console.log('No messages found or querySnapshot is null');
+            // You can handle this case as needed, e.g., setConversations([]) or return
+            setConversations([]);
+            return;
+          }
+          
           const profileInfoMap = new Map();
 
           for (const docx of querySnapshot.docs) {
@@ -70,6 +136,13 @@ export default function ChatScreen() {
               if (participantSnapshot.exists()) {
                 const otherParticipantData = participantSnapshot.data();
 
+                const blockedUsers = userData && userData['blockedUsers'] ? userData['blockedUsers'] : [];
+                const blockedByOtherUsers = otherParticipantData && otherParticipantData['blockedUsers'] ? otherParticipantData['blockedUsers'] : [];
+                const isBlocked = blockedUsers?.some(
+                  (blocked) => blocked.userId === otherParticipantData.id 
+                ) || blockedByOtherUsers?.some((blocked)=> blocked.userId === userId );
+                // Exclude the user if they are blocked
+                if(!isBlocked){
                 profileInfoMap.set(docx.id, {
                   id: docx.id,
                   otherParticipantData,
@@ -81,6 +154,20 @@ export default function ChatScreen() {
                   hideConversation: messageData?.hideConversation,
             
                 });
+              }
+              else{
+                profileInfoMap.set(docx.id, {
+                  id: docx.id,
+                  otherParticipantData,
+                  participantID: otherParticipantData?.id,
+                  profilePic: null,
+                  firstName: 'Chatme',
+                  lastName: 'User',
+                  isOnline: 'false',
+                  hideConversation: messageData?.hideConversation,
+            
+                });
+              }
               }
             }
           }
@@ -97,17 +184,25 @@ export default function ChatScreen() {
 
     fetchProfileInfo();
   }, [userData]);
-
+  
   useEffect(() => {
   const fetchConversations = async () => {
-    if (userData !==null) {
+    if (userData !== null) {
       const messagesCollection = collection(FIREBASE_DB, 'Messages');
+     
       const messagesQuery = query(
         messagesCollection,
         where('participants', 'array-contains', userData.id)
       );
 
       const unsubscribe = onSnapshot(messagesQuery, async (querySnapshot) => {
+       
+        if (querySnapshot.empty || querySnapshot === null) {
+          console.log('No messages found or querySnapshot is null');
+          // You can handle this case as needed, e.g., setConversations([]) or return
+          setConversations([]);
+          return;
+        }
         const profileInfoMap = new Map();
         for (const docx of querySnapshot.docs) {
           const messageData = docx.data();
@@ -119,7 +214,6 @@ export default function ChatScreen() {
             continue;
         }
         else{
-                   
           const messages = messageData?.messages;
           const participants = messageData.participants;
           const otherParticipantData = participants.find(
@@ -131,12 +225,15 @@ export default function ChatScreen() {
           let latestMessage = null;
           for (let i = 0; i < messages.length; i++) {
             const message = messages[i];
-            if (!message.deletedBy || !message.deletedBy.includes(userData.id)) {
+            if (!message.deletedBy || !message.deletedBy.includes(userId)) {
               latestMessage = message;
               break;
+            } else if (i === messages.length - 1) {
+              latestMessage = {text:'. . . . . . .',timestamp:message.timestamp,isSeen:true};
             }
           }
-  
+          console.log('latestMessage:',latestMessage);
+
           if (otherParticipantData) {
             const otherParticipantDocRef = doc(
               FIREBASE_DB,
@@ -149,21 +246,47 @@ export default function ChatScreen() {
             if (participantSnapshot.exists()) {
               const otherParticipantData = participantSnapshot.data();
   
-              profileInfoMap.set(docx.id, {
-                id: docx.id,
-                otherParticipantData,
-                profilePic: otherParticipantData?.profilePic,
-                firstName: otherParticipantData?.firstName,
-                lastName: otherParticipantData?.lastName,
-                isOnline: otherParticipantData?.isOnline,
-                participantID: otherParticipantData?.id,
-                latestMessage: latestMessage?.text,
-                messageTime: latestMessage?.timestamp, // Access timestamp of the latest message
-                isSeen: latestMessage?.isSeen,
-                sender: latestMessage?.sender,
-                messagesArray: messageData?.messages,
-                hideConversation: messageData?.hideConversation,
-              });
+              const blockedUsers = userData && userData['blockedUsers'] ? userData['blockedUsers'] : [];
+              const blockedByOtherUsers = otherParticipantData && otherParticipantData['blockedUsers'] ? otherParticipantData['blockedUsers'] : [];
+              const isBlocked = blockedUsers?.some(
+                (blocked) => blocked.userId === otherParticipantData.id 
+              ) || blockedByOtherUsers?.some((blocked)=> blocked.userId === userId );
+              // Exclude the user if they are blocked
+              if(!isBlocked){
+                profileInfoMap.set(docx.id, {
+                  id: docx.id,
+                  otherParticipantData,
+                  profilePic: otherParticipantData?.profilePic,
+                  firstName: otherParticipantData?.firstName,
+                  lastName: otherParticipantData?.lastName,
+                  isOnline: otherParticipantData?.isOnline,
+                  participantID: otherParticipantData?.id,
+                  latestMessage: latestMessage ? latestMessage.text : null,
+                  messageTime: latestMessage?.timestamp, // Access timestamp of the latest message
+                  isSeen: latestMessage?.isSeen,
+                  sender: latestMessage?.sender,
+                  messagesArray: messageData?.messages,
+                  hideConversation: messageData?.hideConversation,
+                });
+              }
+              else{
+                profileInfoMap.set(docx.id, {
+                  id: docx.id,
+                  otherParticipantData,
+                  profilePic: null,
+                  firstName: 'Chatme',
+                  lastName: 'User',
+                  isOnline: 'Offline',
+                  participantID: otherParticipantData?.id,
+                  latestMessage: latestMessage?.text,
+                  messageTime: latestMessage?.timestamp, // Access timestamp of the latest message
+                  isSeen: latestMessage?.isSeen,
+                  sender: latestMessage?.sender,
+                  messagesArray: messageData?.messages,
+                  hideConversation: messageData?.hideConversation,
+                });
+              }
+
             }
           }
         }
@@ -175,7 +298,14 @@ export default function ChatScreen() {
             !conversation.hideConversation ||
             !conversation.hideConversation.includes(userData.id)
         );
-        setConversations(filteredConversations);
+       // Sort the conversations based on the timestamp of the latest message
+      const sortedConversations = filteredConversations.sort((a, b) => {
+        const timestampA = a.messageTime || 0; // Use 0 if messageTime is undefined
+        const timestampB = b.messageTime || 0; // Use 0 if messageTime is undefined
+
+     return timestampB - timestampA; // Sort in descending order (latest first)
+     });
+     setConversations(sortedConversations);
       });
 
       return () => unsubscribe();
@@ -198,74 +328,149 @@ export default function ChatScreen() {
     setConfirmModalVisible(true);
   };
   
-const onConfirmDelete = async () => {
-  // Close the confirmation modal
-  setConfirmModalVisible(false);
-
-  // Close the main modal
-  setModalVisible(false);
-
-  try {
-    const conversationDocRef = doc(FIREBASE_DB, 'Messages', selectedConversation.id);
-
-    // Get the current conversation data
-    const conversationSnapshot = await getDoc(conversationDocRef);
-    const conversationData = conversationSnapshot.data();
-    
-    const isUserDeletedIndex = conversationData.deletedAt?.findIndex(item => item.userId === userData.id);
-
-    if (isUserDeletedIndex !== -1) {
-      // User is already in the deletedAt array, update the timestamp
-      const updatedDeletedAt = [...conversationData.deletedAt];
-      updatedDeletedAt[isUserDeletedIndex] = {
-        userId: userData.id,
-        timestamp: Timestamp.now(),
-      };
-    
-      await updateDoc(conversationDocRef, {
-        hideConversation: arrayUnion(userData.id),
-        deletedAt: updatedDeletedAt,
-      });
-    } else {
-      // User is not in the deletedAt array, add a new item
-      await updateDoc(conversationDocRef, {
-        hideConversation: arrayUnion(userData.id),
-        deletedAt: arrayUnion({
-          userId: userData.id,
-          timestamp: Timestamp.now(),
-        }),
-      });
-    }
-   
-
-  } catch (error) {
-    console.error('Error updating conversation:', error);
-    // Handle error as needed
-  }
-};
-
-  const onCloseConfirmModal = () => {
+  const onConfirmDelete = async () => {
     // Close the confirmation modal
     setConfirmModalVisible(false);
+
+    // Close the main modal
+    setModalVisible(false);
+
+    try {
+      const conversationDocRef = doc(FIREBASE_DB, 'Messages', selectedConversation.id);
+
+      // Get the current conversation data
+      const conversationSnapshot = await getDoc(conversationDocRef);
+      const conversationData = conversationSnapshot.data();
+      
+      const isUserDeletedIndex = conversationData.deletedAt?.findIndex(item => item.userId === userData.id);
+
+      if (isUserDeletedIndex !== -1) {
+        // User is already in the deletedAt array, update the timestamp
+        const updatedDeletedAt = [...conversationData.deletedAt];
+        updatedDeletedAt[isUserDeletedIndex] = {
+          userId: userData.id,
+          timestamp: Timestamp.now(),
+        };
+      
+        await updateDoc(conversationDocRef, {
+          hideConversation: arrayUnion(userData.id),
+          deletedAt: updatedDeletedAt,
+        });
+      } else {
+        // User is not in the deletedAt array, add a new item
+        await updateDoc(conversationDocRef, {
+          hideConversation: arrayUnion(userData.id),
+          deletedAt: arrayUnion({
+            userId: userData.id,
+            timestamp: Timestamp.now(),
+          }),
+        });
+      }
+
+    } catch (error) {
+      console.error('Error updating conversation:', error);
+      Toast.show('Error:Please try again!', {
+        duration: Toast.durations.SHORT,
+        position: Toast.positions.BOTTOM,
+        backgroundColor: 'rgba(0,0,0,0.7)',
+        textColor: themeColors.bg,
+        shadow: false,
+        animation: true,
+        hideOnPress: true,
+        delay: 0,
+      });
+    }
   };
+
+ const onCloseConfirmModal = () => {
+        // Close the confirmation modal
+        setConfirmModalVisible(false);
+      };
+      const [isConfirmBlock, setConfirmBlock] = useState(false);
+            const onBlockThisPerson = () => {
+              setConfirmBlock(true);
+      }
+
+      const onConfirmButtonBlockThisPerson = async () => {
+        setConfirmBlock(false);
+        setLoading(true);
+     
+        try{
+          const userDocRefUser = doc(FIREBASE_DB, 'User',userId);
+          const userToBlocked = selectedConversation ? selectedConversation.participantID : '';
+          const userIds ={userId:userToBlocked} ;
+          await updateDoc(userDocRefUser, {
+            blockedUsers:  arrayUnion(userIds),
+          });
+         
+          const convoID = selectedConversation ? selectedConversation.id : '';
+          const userDocRefMessages = doc(FIREBASE_DB, 'Messages',convoID);
+          console.log('convoID',convoID);
+       
+          await updateDoc(userDocRefMessages, {
+            hideConversation: arrayUnion(userId),
+            blockedUsers:  arrayUnion(userIds),
+          });
+
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+          setLoading(false);
+          InvalidCredential('User has been blocked you can check it in your blocking settings');
+          setTitle('Blocked Successfully!');
+          setIcon('checkmark-circle');
+          openModalInvalid();
+          setColorPicked(themeColors.semiBlack);
+
+        }
+        catch(error){
+          setLoading(false);
+          console.error('Error blocking the user:', error);
+          Toast.show('Error:Please try again!', {
+            duration: Toast.durations.SHORT,
+            position: Toast.positions.BOTTOM,
+            backgroundColor: 'rgba(0,0,0,0.7)',
+            textColor: themeColors.bg,
+            shadow: false,
+            animation: true,
+            hideOnPress: true,
+            delay: 0,
+          });
+        }
+      }
+      const onCloseConfirmButtonBlock = () => {
+        setConfirmBlock(false);
+      }
 
   const noImage = require('../../assets/images/noprofile.png');
   const profilePic = userData ? userData.profilePic : '';
 
   const handleNavigateToAddMessage = () => {
+    if(!userData.isVerified){
+      return setVerificationModalVisible(true);
+     }
+     else
     navigation.navigate('AddNewMessage'); // Navigate to the 'addMessage' screen
   };
 
   const handleConversationPress = (id,convoID) => {
-    // Handle navigation to the chat screen with the selected conversation
+    if(!userData.isVerified){
+      return setVerificationModalVisible(true);
+     }
+     else
     navigation.navigate('Conversation', { id,convoID }); // Navigate to Conversation and pass the id
+    
   };
-
+ 
   return (
     <View style={styles.containerStyle}>
       <View style={styles.header}>
               <View style={styles.headerLeft}>
-              <TouchableOpacity onPress={() => navigation.navigate('Profile Settings')}>
+              <TouchableOpacity onPress={() => {
+                 if(!userData.isVerified){
+                  return setVerificationModalVisible(true);
+                 }
+                 else
+                navigation.navigate('Profile Settings')
+              }}>
               <Image
               style={styles.userImg}
               source={ profilePic ? { uri: profilePic } : noImage}
@@ -292,7 +497,13 @@ const onConfirmDelete = async () => {
                </View>
               </TouchableOpacity>
           </View>
-      <TouchableWithoutFeedback styles={{backgroundColor:'yellow',flex:1,zIndex:999,}} onPress={() => navigation.navigate('Search')} >
+      <TouchableWithoutFeedback styles={{backgroundColor:'yellow',flex:1,zIndex:999,}} onPress={() => {
+                 if(!userData.isVerified){
+                 return setVerificationModalVisible(true);
+                }
+                else
+                navigation.navigate('Search')
+        }} >
       <View style={styles.searchStyle}>
         <Icon type={Icons.Feather} name="search" color={themeColors.grey} size={screenHeight < 768 ? 20 : 23} />
         <TextInput
@@ -304,9 +515,6 @@ const onConfirmDelete = async () => {
             fontSize: screenHeight < 768 ? 15 : 17,
           }}
           pointerEvents="none"
-          onFocus= {() => {
-            navigation.navigate('Search')
-          }}
           editable={false}
         />
       </View>
@@ -317,7 +525,7 @@ const onConfirmDelete = async () => {
     data={profileInfo.filter(item => !item.hideConversation?.includes(userData.id))}
     keyExtractor={(item, index) => `${item.id}-${index}`} // Combine item.id with index for a unique key
     renderItem={({ item }) => (
-      <TouchableOpacity onPress={() => handleConversationPress(item.participantID)}>
+      <TouchableOpacity onPress={() => handleConversationPress(item.participantID,item.id)}>
       <View style={styles.conversationItem}>
       <Image
         style={styles.conversationProfilePic}
@@ -342,55 +550,52 @@ const onConfirmDelete = async () => {
   <Text style={styles.emptyResultsTextSub}>"Time to chat it up! Initiate friendly conversations with everyone and build those connections!"</Text>
     </View>
   ): (
-    <FlatList
-      style={{ marginTop: -10 }}
-      data={conversations.filter(item => !item.hideConversation?.includes(userData.id))}
-      keyExtractor={(item, index) => `${item.id}-${index}`}
-      renderItem={({ item }) => {
+      <FlatList
+        style={{ marginTop: -10 }}
+        data={conversations.filter(item => !item.hideConversation?.includes(userData.id))}
+        keyExtractor={(item, index) => `${item.id}-${index}`}
+        renderItem={({ item }) => {
 
 
-        return (
-          <TouchableOpacity
-            style={styles.buttonStyle}
-            onPress={() => handleConversationPress(item.participantID,item.id)}
-            onLongPress={() => handleLongPress(item)}
-          >
-            
-            <View style={styles.verticalConversationItem}>
-              <Image
-                  source={item.profilePic ? { uri: item.profilePic } : require('../../assets/images/noprofile.png')}
-                  style={styles.verticalConversationProfilePic}
-              />
-              <View style={styles.verticalDot}>
-                <View style={{ ...styles.verticalDotSub, backgroundColor: item.isOnline === "true" ? themeColors.onlineGreen : themeColors.grey }} />
+          return (
+            <TouchableOpacity
+              style={styles.buttonStyle}
+              onPress={() => handleConversationPress(item.participantID,item.id)}
+              onLongPress={() => handleLongPress(item)}
+            >
+              
+              <View style={styles.verticalConversationItem}>
+                <Image
+                    source={item.profilePic ? { uri: item.profilePic } : require('../../assets/images/noprofile.png')}
+                    style={styles.verticalConversationProfilePic}
+                />
+                <View style={styles.verticalDot}>
+                  <View style={{ ...styles.verticalDotSub, backgroundColor: item.isOnline === "true" ? themeColors.onlineGreen : themeColors.grey }} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={item.sender === userData.id ? styles.verticalConversationName :
+                    (item.isSeen ? styles.verticalConversationName : styles.verticalConversationNameBlack)}>
+                    {item.firstName} {item.lastName}
+                  </Text>
+                  <View style={{ flexDirection: 'row', paddingEnd: 70 }}>
+                  <Text numberOfLines={1} ellipsizeMode='tail'
+                      style={item.sender === userData.id ? styles.verticalConversationMessage :
+                        (item.isSeen ? styles.verticalConversationMessage : styles.verticalConversationNameBlack)}>
+                      {item.latestMessage}
+                    </Text> 
+                    <MessageItem
+                      style={item.sender === userData.id ? styles.timeStampStyle : (item.isSeen ? styles.timeStampStyle : styles.timeStampIsNotSeenStyle)}
+                      item={item.messageTime}
+                    />
+                </View>
+                </View>
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={item.sender === userData.id ? styles.verticalConversationName :
-                  (item.isSeen ? styles.verticalConversationName : styles.verticalConversationNameBlack)}>
-                  {item.firstName} {item.lastName}
-                </Text>
-                <View style={{ flexDirection: 'row', paddingEnd: 70 }}>
-                <Text numberOfLines={1} ellipsizeMode='tail'
-                    style={item.sender === userData.id ? styles.verticalConversationMessage :
-                      (item.isSeen ? styles.verticalConversationMessage : styles.verticalConversationNameBlack)}>
-                    {item.latestMessage}
-                  </Text> 
-                  <MessageItem
-                    style={item.sender === userData.id ? styles.timeStampStyle : (item.isSeen ? styles.timeStampStyle : styles.timeStampIsNotSeenStyle)}
-                    item={item.messageTime}
-                  />
-              </View>
-              </View>
-            </View>
-          </TouchableOpacity>
-        );
-      }}
-      contentContainerStyle={{ alignItems: 'flex-start' }}
-    />
+            </TouchableOpacity>
+          );
+        }}
+        contentContainerStyle={{ alignItems: 'flex-start' }}
+      />
   )}
-
- 
-
 
 {selectedConversation && (
       <CustomModalBottom
@@ -398,8 +603,8 @@ const onConfirmDelete = async () => {
         onClose={() => setModalVisible(false)}
         onDeleteConversation={onDeleteConversation}
         onBlockPerson={() => {
-          // Implement your logic for blocking the person
           setModalVisible(false);
+          onBlockThisPerson();
         }}
         title="Choose an option"
       />
@@ -413,6 +618,53 @@ const onConfirmDelete = async () => {
       title="Delete this entire conversation?"
       message="Once you delete your copy of the conversation, it can't be undone."
     />
+     {isConfirmBlock && (
+     <ConfirmModal
+      visible={isConfirmBlock}
+      onClose={onCloseConfirmButtonBlock}
+      onConfirm={onConfirmButtonBlockThisPerson}
+      buttonName={'Block it!'}
+      bgColor={themeColors.invalidColor}
+      title={`Block ${selectedConversation.firstName} ${selectedConversation.lastName}?`}
+      message={`Blocking this person hides them from your message list. Unblock ${selectedConversation.firstName} anytime by going to your privacy settings.`}
+    /> 
+    )}
+
+      <EmailModal
+        visible={isVerificationModalVisible}
+        onClose={handleVerificationClose}
+        onConfirm={handleVerificationConfirm}
+        title={"Verification Required"}
+        message={"Your email is not verified. Please verify your email to continue and click  the button once done."}
+        buttonName={"Click to refresh!"}
+        bgColor={themeColors.buttonColorPrimary}
+      />
+
+      <EmailModal
+        visible={verificationComplete}
+        onClose={handleVerificationCompleteClose}
+        onConfirm={handleVerificationComplete}
+        iconName={'checkmark-circle-outline'}
+        title={"Verification Complete"}
+        message={"Thank you verifying your email. You can now start a conversation to anyone."}
+        buttonName={"Got it!"}
+        bgColor={themeColors.semiBlack}
+      />    
+    
+    {loading && ( 
+    <Modal transparent={true} animationType="fade" visible={loading}>
+        <View style={{backgroundColor:'rgba(0, 0, 0, 0.5)',flex:1,justifyContent:'center'}}>
+        <View style={{ backgroundColor: 'white',marginLeft:15,marginRight:15 , paddingLeft: 25,paddingRight:25,paddingBottom:20,paddingTop:30, borderRadius: 20 }}>
+          <ActivityIndicator size="large" color="gray" />
+          <Text style={{textAlign:'center',color:themeColors.semiBlack,marginTop:10,fontWeight:'bold'}}>Please wait...</Text>
+        </View>
+        </View>
+    </Modal> 
+    )}  
+    {inValid && (
+      <CustomModal iconName={iconName} colorItem={colorPicked} title={titleError} message={inValid} visible={modalVisibleConfirm} onClose={closeModal} onOkay={handleOkayInvalid} />
+    )}
+
 </View>
   );
 }
