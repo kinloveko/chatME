@@ -173,8 +173,8 @@ export default function ProfileScreen({ navigation }) {
                color={themeColors.semiBlack} 
                size={screenHeight < 768 ? 20 : 25} 
                style={{marginEnd:10,marginStart:-35,marginTop:-2}}/>
-     </TouchableOpacity>
-</View>
+          </TouchableOpacity>
+          </View>
 
             <ScrollView
                 style={styles.container}
@@ -201,11 +201,10 @@ export default function ProfileScreen({ navigation }) {
                 <Text style={styles.userName}>{name}</Text>
                 <Text style={styles.aboutUser}>{email}</Text>
                 
-                <View style={{ display: isVerified  === false ? 'flex' : 'none' }}>
-               
-                  <TouchableOpacity style={styles.userBtn} onPress={() => navigation.navigate('')}>
-                  <Text style={styles.userBtnTxt}>Verify email</Text>
-                  </TouchableOpacity>
+                <View >
+                  <View style={styles.userBtn} >
+                  <Text style={styles.userBtnTxt}>Verified</Text>
+                  </View>
                 
                 </View> 
               </View>
@@ -419,9 +418,9 @@ const styles = StyleSheet.create({
   userBtn: {
     borderColor: themeColors.buttonColorPrimary,
     borderWidth: 2,
-    borderRadius: 3,
+    borderRadius: 20,
     paddingVertical: 5,
-    paddingHorizontal: 10,
+    paddingHorizontal: 15,
     marginHorizontal: 0,
   },
   userBtnTxt: {

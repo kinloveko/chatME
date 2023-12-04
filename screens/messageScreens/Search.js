@@ -10,12 +10,14 @@ import {
   Dimensions,
   FlatList,
 } from 'react-native';
-import Toast from 'react-native-root-toast';
+ 
 import Icon, { Icons } from '../../components/Icons';
 import { themeColors } from '../../theme';
 import { FIREBASE_DB } from '../../config/firebase';
-import { collection, getDocs,updateDoc,doc,getDoc } from 'firebase/firestore'; // Add these imports
+import { collection, getDocs} from 'firebase/firestore'; // Add these imports
 import { useUserData } from '../../components/userData';
+import { Skeleton } from 'moti/skeleton';
+
 const screenHeight = Dimensions.get('window').height;
 
 export default function Search({ navigation }) {
@@ -76,6 +78,25 @@ export default function Search({ navigation }) {
     
       };
   const noImage = require('../../assets/images/noprofile.png');
+  const [showSkeleton, setShowSkeleton] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowSkeleton(false);
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, []); // This effect will run once when the component mounts
+
+  const SkeletonCommonProps = Object.freeze({
+    colorMode:'light',
+    backgroundColor: '#cacaca',
+    transition: {
+      type: 'timing',
+      duration: 1500,
+    },
+  });
+  
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -106,7 +127,6 @@ export default function Search({ navigation }) {
           onChangeText={setSearchText}
         />
       </View>
-
       {filteredUsers.length === 0 && searchText !== '' ? ( // Check if no results and there's user input
        <View style={styles.emptyResults}>
             <Image style={styles.imageStyle} source={require('../../assets/images/sandbox.png')} />
@@ -122,13 +142,30 @@ export default function Search({ navigation }) {
               style={styles.suggestionItem}
               onPress={() => handleSelectName(item.id)}
             >
+              <Skeleton 
+                show={showSkeleton}
+                 height={screenHeight * 0.05} 
+                 width={screenHeight * 0.05}
+                   radius={'round'}
+                  {...SkeletonCommonProps}
+                >
               <Image
                 style={styles.profilePic}
                 source={item.profilePic ? { uri: item.profilePic } : noImage}
               />
-              <Text style={styles.name}>
+              </Skeleton>
+              <View style={{marginEnd:5}} />
+              <Skeleton 
+                show={showSkeleton}
+                 height={25} 
+                 width={'70%'}
+                  {...SkeletonCommonProps}
+                >
+              <Text
+               style={styles.name}>
                 {item.firstName} {item.lastName}
-              </Text>
+              </Text >
+              </Skeleton>
             </TouchableOpacity>
           )}
           keyExtractor={(item) => item.id}

@@ -15,14 +15,34 @@ import { themeColors } from '../../theme';
 import { FIREBASE_DB } from '../../config/firebase';
 import { collection, getDocs } from 'firebase/firestore'; // Add these imports
 import { useUserData } from '../../components/userData';
-const screenHeight = Dimensions.get('window').height;
+import { Skeleton } from 'moti/skeleton';
 
+const screenHeight = Dimensions.get('window').height;
 export default function AddNewMessage({ navigation }) {
   const {userData} = useUserData();  
   const userId = userData ? userData.id : '';
   const [searchText, setSearchText] = useState('');
   const [allUsers, setAllUsers] = useState([]); // List to store all users
   const [filteredUsers, setFilteredUsers] = useState([]); // List to store filtered users
+  const [showSkeleton, setShowSkeleton] = useState(true);
+
+ 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowSkeleton(false);
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, []); // This effect will run once when the component mounts
+
+  const SkeletonCommonProps = Object.freeze({
+    colorMode:'light',
+    backgroundColor: '#cacaca',
+    transition: {
+      type: 'timing',
+      duration: 1500,
+    },
+  });
 
   useEffect(() => {
     // Fetch all users from Firebase Firestore and store them in the list
@@ -122,13 +142,31 @@ export default function AddNewMessage({ navigation }) {
               style={styles.suggestionItem}
               onPress={() => handleSelectName(item.id)}
             >
+              <Skeleton 
+                show={showSkeleton}
+                 height={screenHeight * 0.05} 
+                 width={screenHeight * 0.05}
+                   radius={'round'}
+                  {...SkeletonCommonProps}
+                >
               <Image
+               
                 style={styles.profilePic}
                 source={item.profilePic ? { uri: item.profilePic } : noImage}
               />
-              <Text style={styles.name}>
+              </Skeleton>
+              <View style={{marginEnd:5}} />
+              <Skeleton 
+                show={showSkeleton}
+                 height={25} 
+                 width={'70%'}
+                  {...SkeletonCommonProps}
+                >
+              <Text
+               style={styles.name}>
                 {item.firstName} {item.lastName}
-              </Text>
+              </Text >
+              </Skeleton>
             </TouchableOpacity>
           )}
           keyExtractor={(item) => item.id}

@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, FlatList,  Platform, Image, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import React, { useState, useEffect} from 'react';
+import { View, Text, TextInput,Keyboard,TouchableWithoutFeedback ,FlatList,LayoutAnimation, KeyboardAvoidingView, Platform, Image, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import Icon, { Icons } from '../../components/Icons';
 import { themeColors } from '../../theme';
 import { useRoute } from '@react-navigation/native';
@@ -30,7 +30,6 @@ const route = useRoute();
 const { id, convoID } = route.params;
 console.log('convoID:',convoID);
 const [chatConvoID,setChatConvoID] = useState(null);
-const [chatIDUseState, setChatID] = useState(null);
 const [userDataReceiver, setUserDataReceiver] = useState(null);
 const [newMessage, setMessage] = useState('');
 const [messages, setMessages] = useState([]);
@@ -76,7 +75,7 @@ useEffect(() => {
 
       for (const messageDoc of querySnapshot.docs) {
         const messageData = messageDoc.data();
-        setChatID(messageData.id);
+       
         if (
           messageData.participants.includes(userData.id) &&
           messageData.participants.includes(userDataReceiver.id)
@@ -231,8 +230,8 @@ const onConfirmDelete = async () => {
         return;
       }
 
-      // Assuming chatIDUseState is set correctly elsewhere in your component
-      const chatId = chatIDUseState ? chatIDUseState : null;
+      // Assuming chatConvoID is set correctly elsewhere in your component
+      const chatId = chatConvoID ? chatConvoID : null;
 
       console.log('Sender ID:', itemSender);
 
@@ -307,10 +306,15 @@ const onConfirmDelete = async () => {
 
   const handleProfileSettings = () => {
     // Handle navigation to the chat screen with the selected conversation
-    navigation.navigate('ConversationSettings', { id,convoID:chatConvoID }); // Navigate to Conversation and pass the id
+    navigation.navigate('ConversationSettings', { id,convoID:chatConvoID,otherID:userDataReceiver.id }); // Navigate to Conversation and pass the id
   };
 
+
   return (
+    <KeyboardAvoidingView
+    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    style={styles.containerHolder}
+  >
     <View style={styles.containerHolder}>
       <View style={styles.container} />
       <View style={styles.header}>
@@ -344,7 +348,6 @@ const onConfirmDelete = async () => {
           
         </View>
       </View>
-      
       <FlatList
   data={messages}
   keyExtractor={(item, index) => `${item.id}-${index}`}
@@ -480,12 +483,14 @@ const onConfirmDelete = async () => {
   }}
   inverted={true}
 />
+
      {!isBlocked ? (  <View style={styles.inputContainer}>
         <TextInput
           style={styles.messageInput}
           placeholder="Type a message. . ."
           value={newMessage}
           multiline={true}
+          blurOnSubmit={false}
           onChangeText={(text) => setMessage(text)}
         />
         <TouchableOpacity style={styles.sendButton} onPress={sendMessage}>
@@ -510,6 +515,8 @@ const onConfirmDelete = async () => {
         </View>
       )}
     </View>
+  </KeyboardAvoidingView>
+
   );
 }
 

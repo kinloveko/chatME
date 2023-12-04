@@ -22,7 +22,7 @@ const screenHeight = Dimensions.get('window').height;
 export default function ConversationSettings({navigation}) {
     
     const route = useRoute();
-    const { id, convoID } = route.params;
+    const { id, convoID, otherID } = route.params;
     console.log('convoID Settings:',convoID);
     const { userData } = useUserData();
     const userId = userData? userData.id : '';
@@ -313,7 +313,7 @@ export default function ConversationSettings({navigation}) {
         } 
         else{
           const from = "ConversationSettings";
-          navigation.navigate('OnboardingScreen',{from,convoID}); 
+          navigation.navigate('OnboardingScreen',{from,convoID,otherID}); 
           setConfirmFav(false);
         }
        
@@ -335,16 +335,7 @@ export default function ConversationSettings({navigation}) {
         </TouchableOpacity>
       </View>
 
-      <View style={{ flex: 1, alignItems: 'center', flexDirection: 'row', justifyContent:'flex-end' }}>
-        <TouchableOpacity style={{ marginEnd: 20 }}>
-          <Icon
-            type={Icons.Feather}
-            name="settings"
-            color={themeColors.semiBlack}
-            size={screenHeight < 768 ? 20 : 30}
-          />
-        </TouchableOpacity>
-      </View>
+
     </View>
     <View style={{
         flex:1,

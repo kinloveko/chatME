@@ -5,10 +5,13 @@ import Icon from 'react-native-vector-icons/Ionicons';
 
 const screenSize = Dimensions.get('window').height;
 
-const EmailModal = ({iconName, visible, onClose, onConfirm, message,title,buttonName, bgColor }) => {
+const EmailModal = ({iconName,disable ,visible, onClose, onConfirm,onResendEmail, message,title,buttonName, bgColor,resendEmailName,hide}) => {
+  const resend = resendEmailName? resendEmailName : 'Resend Email Verification';
+  const hideResend = hide ? hide : false;
+  const isDisable =disable? disable : false;
   return (
     <Modal transparent={true} animationType="fade" visible={visible} onRequestClose={onClose}>
-      <TouchableWithoutFeedback onPress={onClose}>
+     
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0, 0, 0, 0.5)' }}>
         <View style={{ backgroundColor: 'white',marginLeft:15,marginRight:15 , paddingLeft: 45,paddingRight:45,paddingBottom:20,paddingTop:30, borderRadius: 20 }}>
           <View style={{ alignItems: 'center', flexDirection: 'column', justifyContent: 'center' }}>
@@ -21,15 +24,22 @@ const EmailModal = ({iconName, visible, onClose, onConfirm, message,title,button
             <Text numberOfLines={3} style={styles.message}>
               {message}
             </Text>
+            
           </View>
-          <View style={styles.buttonContainer}>
+          <View style={{...styles.buttonContainer,marginTop:20}}>
             <TouchableOpacity onPress={onConfirm} style={{ ...styles.buttonStyle, backgroundColor: bgColor }}>
               <Text style={{ color: themeColors.bg, fontWeight: 'bold', textAlign: 'center' }}>{buttonName}</Text>
             </TouchableOpacity>
           </View>
+          <View style={{display:hideResend === false ? 'flex': 'none',alignItems:'center',marginTop:10}}>
+          <TouchableOpacity onPress={onResendEmail} disabled={isDisable}>
+                  <Text className="font-semibold "  style={{color:'darkgray'}}> {resend}</Text>
+              </TouchableOpacity>
+          </View>
+          
         </View>
       </View>
-      </TouchableWithoutFeedback>
+     
     </Modal>
   );
 };
@@ -39,7 +49,10 @@ const styles = StyleSheet.create({
     textAlign: 'center',
       fontWeight: '300',
        color: 'gray',
-        margin: 10,
+        marginLeft: 10,
+        marginRight: 10,
+        marginTop: 10,
+        marginBottom: 5,
         ...Platform.select({
           ios: {
             fontSize: screenSize < 768 ? 14:15,

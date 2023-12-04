@@ -18,6 +18,7 @@ import ConfirmModal from '../../components/ConfirmModal';
 import Toast from 'react-native-root-toast';
 import CustomModal from '../../components/CustomModal';
 import { useUserData } from '../../components/userData';
+import { Skeleton } from 'moti/skeleton';
 
 
 const screenHeight = Dimensions.get('window').height;
@@ -37,6 +38,24 @@ export default function BlockedSearch({navigation}) {
    const [titleError,setTitle] = useState('');
    const [modalVisibleConfirm, setModalVisibleConfirm] = useState(false);
    const [colorPicked,setColorPicked] = useState('');
+   const [showSkeleton, setShowSkeleton] = useState(true);
+
+   useEffect(() => {
+     const timer = setTimeout(() => {
+       setShowSkeleton(false);
+     }, 1500);
+ 
+     return () => clearTimeout(timer);
+   }, []); // This effect will run once when the component mounts
+ 
+   const SkeletonCommonProps = Object.freeze({
+     colorMode:'light',
+     backgroundColor: '#cacaca',
+     transition: {
+       type: 'timing',
+       duration: 1500,
+     },
+   });
    
    const openModalInvalid = () => {
      setModalVisibleConfirm(true);

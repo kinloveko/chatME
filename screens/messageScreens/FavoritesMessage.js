@@ -16,6 +16,8 @@ import ConfirmModal from '../../components/ConfirmModal';
 import MessageItem from '../../components/MessageItem';
 import CustomModalBottom from '../../components/CustomModalBottom';
 import { useRoute } from '@react-navigation/native';
+import { Skeleton } from 'moti/skeleton';
+import Animated, {FadeIn ,Layout } from 'react-native-reanimated';
 
 const screenHeight = Dimensions.get('window').height;
 const screenWidth = Dimensions.get('window').width;
@@ -36,7 +38,28 @@ export default function FavoritesMessage({navigation}) {
       const [isModalVisible, setModalVisible] = useState(false);
       const [selectedConversation, setSelectedConversation] = useState(null);
       const userLoggedAs = userData ? userData.loggedAs : '';
-    
+      const [showSkeleton, setShowSkeleton] = useState(true);
+
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowSkeleton(false);
+    }, 2500);
+
+    return () => clearTimeout(timer);
+  }, []); // This effect will run once when the component mounts
+
+  const SkeletonCommonProps = Object.freeze({
+    colorMode:'light',
+    backgroundColor: '#cacaca',
+    transition: {
+      type: 'timing',
+      duration: 2000,
+    },
+  });
+  
+  const heightConst = screenHeight < 768 ? screenHeight * 0.09:screenHeight * 0.07;
+ 
       useEffect(() => {
         const fetchProfileInfo = async () => {
           if (userData && userData.secondPassword !== null) {
@@ -113,17 +136,22 @@ export default function FavoritesMessage({navigation}) {
     
           const unsubscribe = onSnapshot(messagesQuery, async (querySnapshot) => {
             const profileInfoMap = new Map();
+            if(userData.loggedAs === 'normal'){
+              setConversations([]);
+            }
+            else{
             for (const docx of querySnapshot.docs) {
               const messageData = docx.data();
-             
+              
               // Check if the message is of type 'conversation' and doesn't include the current user's ID
               const isConversationType = messageData.type.some(typeObj => typeObj.type === 'favorites' 
               && typeObj.userId === userData.id);
-
+              
               if (!isConversationType) {
                 continue;
             }
             else{
+              console.log('isConversationType',isConversationType);
               const messages = messageData?.messages;
               const participants = messageData.participants;
               const otherParticipantData = participants.find(
@@ -173,7 +201,7 @@ export default function FavoritesMessage({navigation}) {
             }
 
             }
-    
+           }
             // Filter out conversations where the current user is in hideConversation
             const filteredConversations = Array.from(profileInfoMap.values()).filter(
               (conversation) =>
@@ -325,80 +353,163 @@ export default function FavoritesMessage({navigation}) {
   <Text style={styles.emptyResultsTextSub}>"Time to chat it up! Initiate friendly conversations with everyone and build those connections!"</Text>
     </View>
   ) : (
-    <View style={{flex:1}}>
-   <FlatList  style={{flexGrow:0,height:'18%',marginTop:10}}
+    <View style={{flex:1}} >
+          <FlatList  style={{flexGrow:0,height:'20%',marginTop:10}}
     horizontal
     data={profileInfo.filter(item => !item.hideConversation?.includes(userData.id))}
     keyExtractor={(item, index) => `${item.id}-${index}`} // Combine item.id with index for a unique key
     renderItem={({ item }) => (
-      <TouchableOpacity onPress={() => handleConversationPress(item.participantID)}>
+      <TouchableOpacity onPress={() => handleConversationPress(item.participantID,item.id)}>
       <View style={styles.conversationItem}>
-      <Image
+      <Skeleton 
+                show={showSkeleton}
+                 height={screenHeight * 0.07} 
+                 width={screenHeight * 0.07}
+                   radius={'round'}
+                  {...SkeletonCommonProps}
+                >
+                  
+      <Animated.Image layout={Layout} 
+        entering={FadeIn.duration(1500)}
         style={styles.conversationProfilePic}
         source={item.profilePic ? { uri: item.profilePic } : require('../../assets/images/noprofile.png')}
       />
+      </Skeleton>
         <View style={styles.dot}>
-          <View style={{ ...styles.dotSub, backgroundColor: item.isOnline === "true" ? themeColors.onlineGreen : themeColors.grey }} />
+        <Skeleton 
+                 show={showSkeleton}
+                 height={screenHeight < 768 ? 11: 13} 
+                 width={screenHeight < 768 ? 11: 13}
+                   radius={'round'}
+                  {...SkeletonCommonProps}
+                >
+          <Animated.View 
+          layout={Layout} 
+          entering={FadeIn.duration(1500)}
+          style={{ ...styles.dotSub, backgroundColor: item.isOnline === "true" ? themeColors.onlineGreen : themeColors.grey }} />
+          </Skeleton>
         </View>
-        
-        <Text ellipsizeMode='tail' numberOfLines={2} style={styles.conversationName}>
+        <View height={1} />
+        <Skeleton 
+                 show={showSkeleton}
+                 height={screenHeight < 768 ? 35: 40} 
+                 width={screenHeight < 768 ? 46: 65}
+                  {...SkeletonCommonProps}
+                >
+        <Animated.Text 
+        layout={Layout} 
+        entering={FadeIn.duration(1500)}
+         ellipsizeMode='tail' numberOfLines={2} style={styles.conversationName}>
           {item.firstName} {item.lastName}
-        </Text>
+        </Animated.Text>
+        </Skeleton>
       </View>
     </TouchableOpacity>
   )}
-  contentContainerStyle={{ alignItems: 'flex-start' }} 
-  />
+  contentContainerStyle={{ alignItems: 'flex-start' }} // Align content to start
+/>
     <FlatList
-      style={{ marginTop: 5 }}
-      data={conversations.filter(item => !item.hideConversation?.includes(userData.id))}
-      keyExtractor={(item, index) => `${item.id}-${index}`}
-      renderItem={({ item }) => {
+            style={{ marginTop: -5 }}
+            data={conversations.filter(item => !item.hideConversation?.includes(userData.id))}
+            keyExtractor={(item, index) => `${item.id}-${index}`}
+            renderItem={({ item }) => {
 
 
-        return (
-          <TouchableOpacity
-            style={styles.buttonStyle}
-            onPress={() => handleConversationPress(item.participantID,item.id)}
-            onLongPress={() => handleLongPress(item)}
-          >
-            
-            <View style={styles.verticalConversationItem}>
-              <Image
-                  source={item.profilePic ? { uri: item.profilePic } : require('../../assets/images/noprofile.png')}
-                  style={styles.verticalConversationProfilePic}
-              />
-              <View style={styles.verticalDot}>
-                <View style={{ ...styles.verticalDotSub, backgroundColor: item.isOnline === "true" ? themeColors.onlineGreen : themeColors.grey }} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={item.sender === userData.id ? styles.verticalConversationName :
-                  (item.isSeen ? styles.verticalConversationName : styles.verticalConversationNameBlack)}>
-                  {item.firstName} {item.lastName}
-                </Text>
-                <View style={{ flexDirection: 'row', paddingEnd: 70 }}>
-                <Text numberOfLines={1} ellipsizeMode='tail'
-                    style={item.sender === userData.id ? styles.verticalConversationMessage :
-                      (item.isSeen ? styles.verticalConversationMessage : styles.verticalConversationNameBlack)}>
-                    {item.latestMessage}
-                  </Text> 
-                  <MessageItem
-                    style={item.sender === userData.id ? styles.timeStampStyle : (item.isSeen ? styles.timeStampStyle : styles.timeStampIsNotSeenStyle)}
-                    item={item.messageTime}
-                  />
-              </View>
-              </View>
-            </View>
-          </TouchableOpacity>
-        );
-      }}
-      contentContainerStyle={{ alignItems: 'flex-start' }}
-    />
+              return (
+                <TouchableOpacity
+                  style={styles.buttonStyle}
+                  onPress={() => handleConversationPress(item.participantID,item.id)}
+                  onLongPress={() => handleLongPress(item)}
+                >
+                  
+                  <View style={styles.verticalConversationItem}>
+                    <Skeleton 
+                    show={showSkeleton}
+                    height={heightConst} 
+                    width={heightConst}
+                      radius={'round'}
+                      {...SkeletonCommonProps}
+                    >
+                    <Animated.Image
+                      layout={Layout} 
+                      entering={FadeIn.duration(1500)}
+                        source={item.profilePic ? { uri: item.profilePic } : require('../../assets/images/noprofile.png')}
+                        style={styles.verticalConversationProfilePic}
+                    />
+                    </Skeleton>
+
+                    <View style={styles.verticalDot}>
+
+                    <Skeleton 
+                    show={showSkeleton}
+                    height={screenHeight < 768 ? 11: 13} 
+                    width={screenHeight < 768 ? 11: 13}
+                      radius={'round'}
+                      {...SkeletonCommonProps}
+                    >
+                      <Animated.View
+                        layout={Layout} 
+                        entering={FadeIn.duration(1500)}
+                      style={{ ...styles.verticalDotSub, backgroundColor: item.isOnline === "true" ? themeColors.onlineGreen : themeColors.grey }} />
+                    </Skeleton>
+                    </View>
+
+                    <View style={{ flex: 1 }}>
+
+                    <Skeleton
+                    show={showSkeleton}
+                    height={screenHeight < 768 ? 23:25} 
+                    width={'60%'}
+                      radius={'round'}
+                      {...SkeletonCommonProps}
+                      >
+                      <Animated.Text
+                        layout={Layout} 
+                        entering={FadeIn.duration(1500)}
+                      style={item.sender === userData.id ? styles.verticalConversationName :
+                        (item.isSeen ? styles.verticalConversationName : styles.verticalConversationNameBlack)}>
+                        {item.firstName} {item.lastName}
+                      </Animated.Text>
+                    </Skeleton>
+
+                    <View style={{padding:1}}>
+                    <Skeleton 
+                    show={showSkeleton}
+                    height={screenHeight < 768 ? 22:24} 
+                    width={'95%'}
+                      radius={'round'}
+                      {...SkeletonCommonProps}
+                      >
+                      <View style={{ flexDirection: 'row', paddingEnd: 100 }}>
+                      <Animated.Text
+                        layout={Layout} 
+                        entering={FadeIn.duration(1500)}
+                      numberOfLines={1} ellipsizeMode='tail'
+                          style={item.sender === userData.id ? styles.verticalConversationMessage :
+                            (item.isSeen ? styles.verticalConversationMessage : styles.verticalConversationNameBlack)}>
+                          {item.latestMessage}
+                        </Animated.Text> 
+                        <MessageItem
+                          style={item.sender === userData.id ? styles.timeStampStyle : (item.isSeen ? styles.timeStampStyle : styles.timeStampIsNotSeenStyle)}
+                          item={item.messageTime}
+                        />
+                    </View>
+                    </Skeleton>
+                  </View>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              );
+            }}
+            contentContainerStyle={{ alignItems: 'flex-start' }}
+          />
     </View>
+   
   )}
 
 {selectedConversation && (
       <CustomModalBottom
+        isInFavorites={true}
         visible={isModalVisible}
         onClose={() => setModalVisible(false)}
         onDeleteConversation={onDeleteConversation}
@@ -449,7 +560,7 @@ const styles = StyleSheet.create({
     flex:1,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop:-120,
+    marginTop:-150,
   },
   emptyResultsText: {
     marginTop:-25,

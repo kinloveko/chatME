@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { ArrowLeftIcon } from 'react-native-heroicons/solid'; 
 import InputWithIcon from '../../components/InputWithIcon';
  import {FIREBASE_DB} from '../../config/firebase';
-import { doc, setDoc,getDoc,updateDoc } from "firebase/firestore";
+import { doc, setDoc,getDoc,updateDoc,arrayUnion } from "firebase/firestore";
 import CustomModal from '../../components/CustomModal';
 import { encode,decode } from 'base-64';
 import { useUserData } from '../../components/userData';
@@ -15,11 +15,12 @@ import { useRoute } from '@react-navigation/native';
 export default function AddPasswordFavorites({navigation}) {
     
     const route = useRoute();
-    const {from,convoID} = route.params;
+    const {from,convoID,otherID} = route.params;
     console.log("from:",from);
+    console.log("otherID1234",otherID);
     if(convoID!==null)
     console.log("convoID",convoID);
-  
+
     const { userData } = useUserData();
     useEffect(() => {
         console.log('User Data:', userData);
@@ -119,13 +120,16 @@ export default function AddPasswordFavorites({navigation}) {
                     const passEncode = encodeToBase64(password);
                     const userDocRef = doc(FIREBASE_DB, 'User', userId);
                     const userData = {
-                      secondPassword: passEncode,
+                      secondPassword: passEncode, 
+                      favoriteUsers: arrayUnion(otherID),
+
                     };
                     await setDoc(userDocRef, userData, { merge: true });
                    
                     if (whereTo === 'ConversationSettings' && convoID !== null) {
                       const conversationDocRef = doc(FIREBASE_DB, 'Messages', convoID);
-                    
+                           // Get the user's Firestore document reference
+                      
                       try {
                         // Get the current conversation data
                         const conversationSnapshot = await getDoc(conversationDocRef);
@@ -136,7 +140,7 @@ export default function AddPasswordFavorites({navigation}) {
                           // Check if 'type' field is defined in the document
                           if (conversationData && conversationData.type) {
                             const isUserTypeIndex = conversationData.type.findIndex(item => item.userId === userId);
-                    
+                            
                             if (isUserTypeIndex !== -1) {
                               // User is already in the 'type' array, update the timestamp
                               const updatedType = [...conversationData.type];
@@ -145,9 +149,11 @@ export default function AddPasswordFavorites({navigation}) {
                                 userId: userId,
                               };
                     
+
                               await updateDoc(conversationDocRef, {
                                 type: updatedType,
                               });
+  
                             }
                           }
                         }

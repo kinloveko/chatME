@@ -8,10 +8,9 @@ import Icon, { Icons } from '../../components/Icons';
 import ConfirmModal from '../../components/ConfirmModal';
 import Toast from 'react-native-root-toast';
 import CustomModal from '../../components/CustomModal';
-import { remove } from 'lodash';
+
 
 const screenHeight = Dimensions.get('window').height;
-const screenWidth = Dimensions.get('window').width;
 
 export default function BlockingSettings({navigation}) {
 
@@ -185,7 +184,6 @@ export default function BlockingSettings({navigation}) {
       const onCloseConfirmButtonBlock = () => {
         setConfirmBlock(false);
       }
-
 
     return(
         <SafeAreaView style={{

@@ -60,10 +60,10 @@ export default function ForgotPassword({navigation}) {
       
     }
     }
-
   const handleOkayInvalid = () => {
     // Handle 'Okay' button press
     setModalVisible(false);
+    if(iconName === 'checkmark-circle')
     navigation.navigate('Login');
 };
   const showLoginError = (message) => {

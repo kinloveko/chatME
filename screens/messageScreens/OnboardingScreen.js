@@ -59,11 +59,14 @@ const Slide = ({item}) => {
 
 const OnboardingScreen = ({navigation}) => {
   const route = useRoute();
-  const { from,convoID } = route.params;
+  const { from,convoID,otherID } = route.params;
+  console.log("otherID",otherID);
   console.log("from:",from);
   const handleButtonClick = ()=>{
-   
+    if(from === 'Profile')
     navigation.navigate('AddPasswordFavorites',{from,convoID})
+  else
+    navigation.navigate('AddPasswordFavorites',{from,convoID,otherID})
   }
 
   const [currentSlideIndex, setCurrentSlideIndex] = React.useState(0);

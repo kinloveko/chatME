@@ -5,14 +5,16 @@ import { themeColors } from '../theme';
 
 const screenSize = Dimensions.get('window').height;
 const screenWidth = Dimensions.get('window').width;
-const CustomModalBottom = ({ visible, onClose, onDeleteConversation, onBlockPerson, title }) => {
+const CustomModalBottom = ({ isInFavorites,visible, onClose, onDeleteConversation, onBlockPerson, title }) => {
+  const favorites = isInFavorites? isInFavorites:false;
+  console.log('isInFavorites',favorites);
   return (
     <Modal transparent={true} animationType="fade" visible={visible} onRequestClose={onClose}>
      <TouchableWithoutFeedback onPress={onClose}>
 
       <View   style={{ flex: 1, justifyContent:'flex-end', alignItems: 'center', backgroundColor: 'rgba(0, 0, 0, 0.5)' }}>
-        <View style={{ backgroundColor: 'white', width: screenWidth, height: screenSize * 0.26, paddingTop: 10, borderTopEndRadius: 20,borderTopStartRadius: 20  }}>
-        <View style={{paddingTop:10, flexDirection: 'row', paddingStart:15,justifyContent:'center' }}>
+        <View style={{ backgroundColor: 'white', width: screenWidth, height: favorites === true ? screenSize * 0.15:screenSize * 0.30, paddingTop: 10, borderTopEndRadius: 20,borderTopStartRadius: 20  }}>
+        <View style={{display:favorites === true ? 'none':'flex',paddingTop:10, flexDirection: 'row', paddingStart:15,justifyContent:'center' }}>
              <Text style={{fontSize:screenSize < 768 ? 16:17,fontWeight:'400',color:'gray'}}>{title}</Text>
              <Icon type={Icons.EvilIcons} name="chevron-right" color='gray' size={screenSize < 768 ? 26 : 28} />
           </View>
@@ -22,7 +24,7 @@ const CustomModalBottom = ({ visible, onClose, onDeleteConversation, onBlockPers
               <Icon  type={Icons.EvilIcons} name="trash" color={themeColors.semiBlack} size={screenSize < 768 ? 30 : 40} />
               <Text style={styles.texts}>Delete Conversation</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={onBlockPerson} style={styles.buttonStyle}>
+            <TouchableOpacity onPress={onBlockPerson} style={{...styles.buttonStyle,display:favorites === false ? 'flex':'none'}}>
             <Icon type={Icons.EvilIcons} style={styles.iconStyle} name="minus" color={themeColors.invalidColor} size={screenSize < 768 ? 30 : 40} />
               <Text style={{...styles.texts,color:themeColors.invalidColor}}>Block this Person</Text>
             </TouchableOpacity>

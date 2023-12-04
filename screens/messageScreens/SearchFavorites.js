@@ -10,12 +10,13 @@ import {
   Dimensions,
   FlatList,
 } from 'react-native';
-import Toast from 'react-native-root-toast';
 import Icon, { Icons } from '../../components/Icons';
 import { themeColors } from '../../theme';
 import { FIREBASE_DB } from '../../config/firebase';
-import { collection, getDocs,updateDoc,doc,getDoc } from 'firebase/firestore'; // Add these imports
+import { collection, getDocs} from 'firebase/firestore'; // Add these imports
 import { useUserData } from '../../components/userData';
+import { Skeleton } from 'moti/skeleton';
+
 const screenHeight = Dimensions.get('window').height;
 
 export default function SearchFavorites({navigation}) {
@@ -25,6 +26,8 @@ export default function SearchFavorites({navigation}) {
     const [allUsers, setAllUsers] = useState([]); // List to store all users
     const [filteredUsers, setFilteredUsers] = useState([]); // List to store filtered users
     const userId = userData ? userData.id : '';
+    const loggedInAs = userData ? userData.loggedAs : '';
+    console.log('loggedAs:',loggedInAs);
     useEffect(() => {
       // Fetch all users from Firebase Firestore and store them in the list
       const fetchAllUsers = async () => {
@@ -36,7 +39,7 @@ export default function SearchFavorites({navigation}) {
             const favorites = userData && userData['favoriteUsers'] ? userData['favoriteUsers'] : [];
             const blockedUsers = userData && userData['blockedUsers'] ? userData['blockedUsers'] : [];
             const blockedByOtherUsers = data && data['blockedUsers'] ? data['blockedUsers'] : [];
-            const isBlocked = data.id === userId || favorites?.includes(data.id) || blockedUsers?.some(
+            const isBlocked = loggedInAs === 'normal' || data.id === userId || !favorites?.includes(data.id)  || blockedUsers?.some(
               (blocked) => blocked.userId === data.id 
             ) || blockedByOtherUsers?.some((blocked)=> blocked.userId === userId );
             // Exclude the user if they are blocked
@@ -76,6 +79,25 @@ export default function SearchFavorites({navigation}) {
       
         };
     const noImage = require('../../assets/images/noprofile.png');
+    const [showSkeleton, setShowSkeleton] = useState(true);
+
+    useEffect(() => {
+      const timer = setTimeout(() => {
+        setShowSkeleton(false);
+      }, 1500);
+  
+      return () => clearTimeout(timer);
+    }, []); // This effect will run once when the component mounts
+  
+    const SkeletonCommonProps = Object.freeze({
+      colorMode:'light',
+      backgroundColor: '#cacaca',
+      transition: {
+        type: 'timing',
+        duration: 1500,
+      },
+    });
+    
     return (
       <View style={styles.container}>
         <View style={styles.header}>
@@ -115,24 +137,42 @@ export default function SearchFavorites({navigation}) {
              </View>
         ) : (
           <FlatList
-            style={styles.flatListStyles}
-            data={filteredUsers} // Display the filtered users
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={styles.suggestionItem}
-                onPress={() => handleSelectName(item.id)}
-              >
-                <Image
-                  style={styles.profilePic}
-                  source={item.profilePic ? { uri: item.profilePic } : noImage}
-                />
-                <Text style={styles.name}>
-                  {item.firstName} {item.lastName}
-                </Text>
-              </TouchableOpacity>
-            )}
-            keyExtractor={(item) => item.id}
-          />
+          style={styles.flatListStyles}
+          data={filteredUsers} // Display the filtered users
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={styles.suggestionItem}
+              onPress={() => handleSelectName(item.id)}
+            >
+              <Skeleton 
+                show={showSkeleton}
+                 height={screenHeight * 0.05} 
+                 width={screenHeight * 0.05}
+                   radius={'round'}
+                  {...SkeletonCommonProps}
+                >
+              <Image
+                style={styles.profilePic}
+                source={item.profilePic ? { uri: item.profilePic } : noImage}
+              />
+              </Skeleton>
+              <View style={{marginEnd:5}} />
+              <Skeleton 
+                show={showSkeleton}
+                 height={25} 
+                 width={'70%'}
+                  {...SkeletonCommonProps}
+                >
+
+              <Text
+               style={styles.name}>
+                {item.firstName} {item.lastName}
+              </Text >
+              </Skeleton>
+            </TouchableOpacity>
+          )}
+          keyExtractor={(item) => item.id}
+        />
         )}
       </View>
     );

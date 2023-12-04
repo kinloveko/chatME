@@ -9,7 +9,7 @@ import { doc, setDoc  } from "firebase/firestore";
 import CustomModal from '../../components/CustomModal';
 import { encode,decode } from 'base-64';
 import { useUserData } from '../../components/userData';
-import { useRoute } from '@react-navigation/native';
+import { getAuth, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from "firebase/auth";
 
 export default function UpdatePassword({navigation}) {
   
@@ -18,8 +18,9 @@ export default function UpdatePassword({navigation}) {
     useEffect(() => {
         console.log('User Data:', userData);
     }, [userData]);
-
+    const auth = getAuth();
     const userId = userData? userData.id : '';
+    const secondPass = userData ? userData.secondPassword : null;
     const [password, setPassword] = useState('');
     const [confirmpassword, setConfirmPassword] = useState('');
     const [oldPassword, setOldPassword] = useState('');
@@ -116,7 +117,9 @@ export default function UpdatePassword({navigation}) {
           setOldPasswordValid(true);
 
           try {
-            if(userData.secondPassword !== null){
+          
+            if(secondPass){
+              console.log("has 2nd pass:",userData.secondPassword);
                 const secondPrimary = decodeFromBase64(userData.secondPassword);
                 if(secondPrimary === password){
                      InvalidCredential('Password must be unique from your second password!');
@@ -127,7 +130,6 @@ export default function UpdatePassword({navigation}) {
                      return;
                  }
             }
-
              if(primaryPassword === password){
                 InvalidCredential('Password must be unique from your current password!');
                 setTitle('Error: Not a unique password');
@@ -139,21 +141,31 @@ export default function UpdatePassword({navigation}) {
             else{
               if (oldPassword && password && confirmpassword) {
 
-                    const passEncode = encodeToBase64(password);
-                    const userDocRef = doc(FIREBASE_DB, 'User', userId);
-                    const userData = {
-                      primaryPassword: passEncode,
-                    };
-                    await setDoc(userDocRef, userData, { merge: true });
-                   
-                    InvalidCredential('Your password has been update. Please click the button to continue.');
-                    setTitle('Password Updated!');
-                    setIcon('checkmark-circle');
-                    openModalInvalid();
-                    setColorPicked(themeColors.semiBlack);
-                }
-            }
+                const user = auth.currentUser;
 
+                // Create a credential with the user's email and old password
+                const credentials = EmailAuthProvider.credential(user.email, oldPassword);
+                  // Reauthenticate the user with the provided credentials
+                await reauthenticateWithCredential(user, credentials);
+
+                // If reauthentication is successful, update the password
+                await updatePassword(user, password);
+              
+                InvalidCredential('Your password has been update. Please click the button to continue.');
+                setTitle('Password Updated!');
+                setIcon('checkmark-circle');
+                openModalInvalid();
+                setColorPicked(themeColors.semiBlack);
+
+                // Update the password in Firestore or any other necessary actions
+                const passEncode = encodeToBase64(password);
+                const userDocRef = doc(FIREBASE_DB, 'User', userId);
+                const userData = {
+                  primaryPassword: passEncode,
+                };
+                await setDoc(userDocRef, userData, { merge: true });
+              }
+            }
           } catch (err) {
             console.log('Error:',err.message);
           }
@@ -162,13 +174,13 @@ export default function UpdatePassword({navigation}) {
           console.log('Error');
         }
       };
-      
 
     // Function to encode to base64
     function encodeToBase64(data) {
       const encodedData = encode(data);
       return encodedData;
     }
+
     // Function to decode base64 data
        function decodeFromBase64(base64Data) {
         const decodedData = decode(base64Data);

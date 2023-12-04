@@ -22,7 +22,10 @@ import CustomModalBottom from '../../components/CustomModalBottom';
 import ConfirmModal from '../../components/ConfirmModal';
 import CustomModal from '../../components/CustomModal';
 import EmailModal from '../../components/EmailModal';
-import { getAuth,onAuthStateChanged } from 'firebase/auth';
+import { getAuth,sendEmailVerification } from 'firebase/auth';
+import { Skeleton } from 'moti/skeleton';
+import Animated, {FadeIn ,Layout } from 'react-native-reanimated';
+
 
 const screenHeight = Dimensions.get('window').height;
 const screenWidth = Dimensions.get('window').width;
@@ -47,6 +50,19 @@ export default function ChatScreen() {
   const [modalVisibleConfirm, setModalVisibleConfirm] = useState(false);
   const [colorPicked,setColorPicked] = useState('');
   const [verificationComplete,setVerificationComplete] = useState(false);
+  const [resendTitle, setResendTitle] = useState('Resend Email Verification');
+  const [disableSent, setDisableSent] = useState(false);
+  const [showSkeleton, setShowSkeleton] = useState(true);
+
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowSkeleton(false);
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, []); // This effect will run once when the component mounts
+
 
   const handleVerificationComplete =()=>{
     setVerificationComplete(false);
@@ -62,27 +78,33 @@ useEffect(() => {
   }
 }, [userData]);
 
-const handleVerificationConfirm = async () => {
-  auth.currentUser.reload();
-  if(auth.currentUser.emailVerified === true){
-    const userDocRef = doc(FIREBASE_DB, 'User', userId);
-      await updateDoc (userDocRef,{
-        isVerified: true,
-      });
-    setVerificationModalVisible(false);
-    setVerificationComplete(true);
-  }
-  else{
-    auth.currentUser.reload();
-    console.log('auth.currentUser.emailVerified:',auth.currentUser.emailVerified);
-    setVerificationModalVisible(true);
-  }
-};
+    const handleVerificationConfirm = async () => {
+      auth.currentUser.reload();
+      if(auth.currentUser.emailVerified === true){
+        const userDocRef = doc(FIREBASE_DB, 'User', userId);
+          await updateDoc (userDocRef,{
+            isVerified: true,
+          });
+        setVerificationModalVisible(false);
+        setVerificationComplete(true);
+      }
+      else{
+        auth.currentUser.reload();
+        console.log('auth.currentUser.emailVerified:',auth.currentUser.emailVerified);
+        setVerificationModalVisible(true);
+      }
+    };
+
+    const handleResendEmail = async () => {
+      setVerificationModalVisible(true);
+     await sendEmailVerification(auth.currentUser);
+      setResendTitle('Email Sent (disabled)');
+      setDisableSent(true);
+     
+    }
+
     const handleVerificationClose = () => {
-      // Implement the logic when the user closes the verification modal
-      // For example, you can navigate the user to another screen
-      // Close the modal after handling the close action
-      setVerificationModalVisible(false);
+        setVerificationModalVisible(false);
     };
   const openModalInvalid = () => {
     setModalVisibleConfirm(true);
@@ -331,10 +353,9 @@ const handleVerificationConfirm = async () => {
   const onConfirmDelete = async () => {
     // Close the confirmation modal
     setConfirmModalVisible(false);
-
     // Close the main modal
     setModalVisible(false);
-
+    setLoading(true);
     try {
       const conversationDocRef = doc(FIREBASE_DB, 'Messages', selectedConversation.id);
 
@@ -367,8 +388,17 @@ const handleVerificationConfirm = async () => {
         });
       }
 
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      setLoading(false);
+
+      InvalidCredential('Conversation is now deleted, you can still message ');
+      setTitle('Deleted Successfully!');
+      setIcon('checkmark-circle');
+      openModalInvalid();
+      setColorPicked(themeColors.semiBlack);
+
     } catch (error) {
-      console.error('Error updating conversation:', error);
+      console.error('Error deleting conversation:', error);
       Toast.show('Error:Please try again!', {
         duration: Toast.durations.SHORT,
         position: Toast.positions.BOTTOM,
@@ -459,8 +489,19 @@ const handleVerificationConfirm = async () => {
     navigation.navigate('Conversation', { id,convoID }); // Navigate to Conversation and pass the id
     
   };
+ const heightConst = screenHeight < 768 ? screenHeight * 0.09:screenHeight * 0.07;
  
-  return (
+ const SkeletonCommonProps = Object.freeze({
+  colorMode:'light',
+  backgroundColor: '#cacaca',
+  transition: {
+    type: 'timing',
+    duration: 2000,
+  },
+});
+
+ return (
+
     <View style={styles.containerStyle}>
       <View style={styles.header}>
               <View style={styles.headerLeft}>
@@ -520,29 +561,7 @@ const handleVerificationConfirm = async () => {
       </View>
     </TouchableWithoutFeedback> 
 
-    <FlatList  style={{flexGrow:0,height:'17%',marginTop:10}}
-    horizontal
-    data={profileInfo.filter(item => !item.hideConversation?.includes(userData.id))}
-    keyExtractor={(item, index) => `${item.id}-${index}`} // Combine item.id with index for a unique key
-    renderItem={({ item }) => (
-      <TouchableOpacity onPress={() => handleConversationPress(item.participantID,item.id)}>
-      <View style={styles.conversationItem}>
-      <Image
-        style={styles.conversationProfilePic}
-        source={item.profilePic ? { uri: item.profilePic } : require('../../assets/images/noprofile.png')}
-      />
-        <View style={styles.dot}>
-          <View style={{ ...styles.dotSub, backgroundColor: item.isOnline === "true" ? themeColors.onlineGreen : themeColors.grey }} />
-        </View>
-        
-        <Text ellipsizeMode='tail' numberOfLines={2} style={styles.conversationName}>
-          {item.firstName} {item.lastName}
-        </Text>
-      </View>
-    </TouchableOpacity>
-  )}
-  contentContainerStyle={{ alignItems: 'flex-start' }} // Align content to start
-/>
+
   {conversations.length === 0 ? (
     <View style={styles.emptyResults}>
     <Image style={styles.imageStyle} source={require('../../assets/images/nomessage.png')} />
@@ -550,51 +569,158 @@ const handleVerificationConfirm = async () => {
   <Text style={styles.emptyResultsTextSub}>"Time to chat it up! Initiate friendly conversations with everyone and build those connections!"</Text>
     </View>
   ): (
-      <FlatList
-        style={{ marginTop: -10 }}
-        data={conversations.filter(item => !item.hideConversation?.includes(userData.id))}
-        keyExtractor={(item, index) => `${item.id}-${index}`}
-        renderItem={({ item }) => {
-
-
-          return (
-            <TouchableOpacity
-              style={styles.buttonStyle}
-              onPress={() => handleConversationPress(item.participantID,item.id)}
-              onLongPress={() => handleLongPress(item)}
-            >
-              
-              <View style={styles.verticalConversationItem}>
-                <Image
-                    source={item.profilePic ? { uri: item.profilePic } : require('../../assets/images/noprofile.png')}
-                    style={styles.verticalConversationProfilePic}
-                />
-                <View style={styles.verticalDot}>
-                  <View style={{ ...styles.verticalDotSub, backgroundColor: item.isOnline === "true" ? themeColors.onlineGreen : themeColors.grey }} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={item.sender === userData.id ? styles.verticalConversationName :
-                    (item.isSeen ? styles.verticalConversationName : styles.verticalConversationNameBlack)}>
-                    {item.firstName} {item.lastName}
-                  </Text>
-                  <View style={{ flexDirection: 'row', paddingEnd: 70 }}>
-                  <Text numberOfLines={1} ellipsizeMode='tail'
-                      style={item.sender === userData.id ? styles.verticalConversationMessage :
-                        (item.isSeen ? styles.verticalConversationMessage : styles.verticalConversationNameBlack)}>
-                      {item.latestMessage}
-                    </Text> 
-                    <MessageItem
-                      style={item.sender === userData.id ? styles.timeStampStyle : (item.isSeen ? styles.timeStampStyle : styles.timeStampIsNotSeenStyle)}
-                      item={item.messageTime}
-                    />
-                </View>
-                </View>
-              </View>
-            </TouchableOpacity>
-          );
-        }}
-        contentContainerStyle={{ alignItems: 'flex-start' }}
+    <View style={{flex:1}} >
+          <FlatList  style={{flexGrow:0,height:'20%',marginTop:10}}
+    horizontal
+    data={profileInfo.filter(item => !item.hideConversation?.includes(userData.id))}
+    keyExtractor={(item, index) => `${item.id}-${index}`} // Combine item.id with index for a unique key
+    renderItem={({ item }) => (
+      <TouchableOpacity onPress={() => handleConversationPress(item.participantID,item.id)}>
+      <View style={styles.conversationItem}>
+      <Skeleton 
+                show={showSkeleton}
+                 height={screenHeight * 0.07} 
+                 width={screenHeight * 0.07}
+                   radius={'round'}
+                  {...SkeletonCommonProps}
+                >
+                  
+      <Animated.Image layout={Layout} 
+        entering={FadeIn.duration(1500)}
+        style={styles.conversationProfilePic}
+        source={item.profilePic ? { uri: item.profilePic } : require('../../assets/images/noprofile.png')}
       />
+      </Skeleton>
+        <View style={styles.dot}>
+        <Skeleton 
+                 show={showSkeleton}
+                 height={screenHeight < 768 ? 11: 13} 
+                 width={screenHeight < 768 ? 11: 13}
+                   radius={'round'}
+                  {...SkeletonCommonProps}
+                >
+          <Animated.View 
+          layout={Layout} 
+          entering={FadeIn.duration(1500)}
+          style={{ ...styles.dotSub, backgroundColor: item.isOnline === "true" ? themeColors.onlineGreen : themeColors.grey }} />
+          </Skeleton>
+        </View>
+        <View height={1} />
+        <Skeleton 
+                 show={showSkeleton}
+                 height={screenHeight < 768 ? 35: 40} 
+                 width={screenHeight < 768 ? 46: 65}
+                  {...SkeletonCommonProps}
+                >
+        <Animated.Text 
+        layout={Layout} 
+        entering={FadeIn.duration(1500)}
+         ellipsizeMode='tail' numberOfLines={2} style={styles.conversationName}>
+          {item.firstName} {item.lastName}
+        </Animated.Text>
+        </Skeleton>
+      </View>
+    </TouchableOpacity>
+  )}
+  contentContainerStyle={{ alignItems: 'flex-start' }} // Align content to start
+/>
+    <FlatList
+            style={{ marginTop: -5 }}
+            data={conversations.filter(item => !item.hideConversation?.includes(userData.id))}
+            keyExtractor={(item, index) => `${item.id}-${index}`}
+            renderItem={({ item }) => {
+
+
+              return (
+                <TouchableOpacity
+                  style={styles.buttonStyle}
+                  onPress={() => handleConversationPress(item.participantID,item.id)}
+                  onLongPress={() => handleLongPress(item)}
+                >
+                  
+                  <View style={styles.verticalConversationItem}>
+                    <Skeleton 
+                    show={showSkeleton}
+                    height={heightConst} 
+                    width={heightConst}
+                      radius={'round'}
+                      {...SkeletonCommonProps}
+                    >
+                    <Animated.Image
+                      layout={Layout} 
+                      entering={FadeIn.duration(2500)}
+                        source={item.profilePic ? { uri: item.profilePic } : require('../../assets/images/noprofile.png')}
+                        style={styles.verticalConversationProfilePic}
+                    />
+                    </Skeleton>
+
+                    <View style={styles.verticalDot}>
+
+                    <Skeleton 
+                    show={showSkeleton}
+                    height={screenHeight < 768 ? 11: 13} 
+                    width={screenHeight < 768 ? 11: 13}
+                      radius={'round'}
+                      {...SkeletonCommonProps}
+                    >
+                      <Animated.View
+                        layout={Layout} 
+                        entering={FadeIn.duration(2500)}
+                      style={{ ...styles.verticalDotSub, backgroundColor: item.isOnline === "true" ? themeColors.onlineGreen : themeColors.grey }} />
+                    </Skeleton>
+                    </View>
+
+                    <View style={{ flex: 1 }}>
+
+                    <Skeleton
+                    show={showSkeleton}
+                    height={screenHeight < 768 ? 23:25} 
+                    width={'60%'}
+                      radius={'round'}
+                      {...SkeletonCommonProps}
+                      >
+                      <Animated.Text
+                        layout={Layout} 
+                        entering={FadeIn.duration(2500)}
+                      style={item.sender === userData.id ? styles.verticalConversationName :
+                        (item.isSeen ? styles.verticalConversationName : styles.verticalConversationNameBlack)}>
+                        {item.firstName} {item.lastName}
+                      </Animated.Text>
+                    </Skeleton>
+
+                    <View style={{padding:1}}>
+                    <Skeleton 
+                    show={showSkeleton}
+                    height={screenHeight < 768 ? 22:24} 
+                    width={'95%'}
+                      radius={'round'}
+                      {...SkeletonCommonProps}
+                      >
+                      <View style={{ flexDirection: 'row', paddingEnd: 100 }}>
+                      <Animated.Text
+                        layout={Layout} 
+                        entering={FadeIn.duration(1500)}
+                      numberOfLines={1} ellipsizeMode='tail'
+                          style={item.sender === userData.id ? styles.verticalConversationMessage :
+                            (item.isSeen ? styles.verticalConversationMessage : styles.verticalConversationNameBlack)}>
+                          {item.latestMessage}
+                        </Animated.Text> 
+                        <MessageItem
+                          style={item.sender === userData.id ? styles.timeStampStyle : (item.isSeen ? styles.timeStampStyle : styles.timeStampIsNotSeenStyle)}
+                          item={item.messageTime}
+                        />
+                    </View>
+                    </Skeleton>
+                  </View>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              );
+            }}
+            contentContainerStyle={{ alignItems: 'flex-start' }}
+          />
+    </View>
+   
   )}
 
 {selectedConversation && (
@@ -631,6 +757,8 @@ const handleVerificationConfirm = async () => {
     )}
 
       <EmailModal
+        hide={false}
+        onResendEmail={handleResendEmail}
         visible={isVerificationModalVisible}
         onClose={handleVerificationClose}
         onConfirm={handleVerificationConfirm}
@@ -638,9 +766,14 @@ const handleVerificationConfirm = async () => {
         message={"Your email is not verified. Please verify your email to continue and click  the button once done."}
         buttonName={"Click to refresh!"}
         bgColor={themeColors.buttonColorPrimary}
+        resendEmailName={resendTitle}
+        disable={disableSent}
       />
 
       <EmailModal
+         disable={true}
+       resendEmailName={''}
+        hide={true}
         visible={verificationComplete}
         onClose={handleVerificationCompleteClose}
         onConfirm={handleVerificationComplete}
@@ -664,17 +797,21 @@ const handleVerificationConfirm = async () => {
     {inValid && (
       <CustomModal iconName={iconName} colorItem={colorPicked} title={titleError} message={inValid} visible={modalVisibleConfirm} onClose={closeModal} onOkay={handleOkayInvalid} />
     )}
+  
 
-</View>
+    </View>
   );
 }
 
 
 const styles = StyleSheet.create({
+  index:{
+    zIndex:999,
+  },
   emptyResults: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop:-20,
+    marginTop:80,
   },
   emptyResultsText: {
     marginTop:-25,
@@ -860,7 +997,6 @@ const styles = StyleSheet.create({
   },
   verticalConversationMessage:{
     color:'gray',
-
     marginTop:5,
     marginStart:10,
     ...Platform.select({
